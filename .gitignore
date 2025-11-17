@@ -33,3 +33,6 @@ go.work.sum
 
 # Text fil
 *.txt
+
+# .git file
+*.git
