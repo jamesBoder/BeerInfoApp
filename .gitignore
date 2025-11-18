@@ -36,3 +36,6 @@ go.work.sum
 
 # .git file
 *.git
+
+# .md file
+*.md
