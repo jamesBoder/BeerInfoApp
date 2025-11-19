@@ -39,3 +39,6 @@ go.work.sum
 
 # .md file
 *.md
+
+# .json file
+*.json

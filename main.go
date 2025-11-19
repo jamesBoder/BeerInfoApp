@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // build command functions here
@@ -25,7 +27,8 @@ type config struct {
 // create state struct that holds a pointer to a config
 type state struct {
 	// pointer to config struct
-	config *config
+	config             *config
+	lastSearchResulsts []Beer // slice to hold last search results
 }
 
 // create command struct
@@ -152,6 +155,9 @@ func searchCommand(s *state, cmd command) error {
 		return nil
 	}
 
+	// save last search results to state
+	s.lastSearchResulsts = apiResponse.Data
+
 	// Print the decoded beer information
 	fmt.Printf("\n🍺 Found %d beers:\n\n", len(apiResponse.Data))
 	for i, beer := range apiResponse.Data {
@@ -170,20 +176,35 @@ func searchCommand(s *state, cmd command) error {
 		fmt.Println()
 	}
 
-	// Ask if the user wants to search again
-	fmt.Print("Would you like to search for another beer? (y/n): ")
-	var again string
-	fmt.Scanln(&again)
-	if again == "no" || again == "n" || again == "N" || again == "No" || again == "NO" {
+	// Ask user what to do next
+
+	fmt.Println("\nOptions:")
+	fmt.Println("  [s] Search again")
+	fmt.Println("  [m] Main menu")
+	fmt.Println("  [x] Exit")
+	fmt.Print("Your choice: ")
+
+	var choice string
+	fmt.Scanln(&choice)
+	choice = strings.ToLower(strings.TrimSpace(choice))
+
+	switch choice {
+	case "s", "search":
+		fmt.Println("Let's search for another beer!")
+		// Loop continues
+	case "m", "menu", "":
+		fmt.Println("Returning to main menu...")
+		// print help menu
+		helpCommand(s, command{})
+		return nil
+	case "x", "exit", "quit":
 		fmt.Println("Thanks for using Beer Info App! Goodbye!")
-		// exit the program
 		os.Exit(0)
+	default:
+		fmt.Println("Returning to main menu...")
 		return nil
 	}
-
-	fmt.Printf("Searching for beer %q using API key %s\n", searchTerm, apiKey)
 	return nil
-
 }
 
 // create a help command function
@@ -192,6 +213,10 @@ func helpCommand(s *state, cmd command) error {
 	fmt.Println("  login <username>   - Log in with the specified username")
 	fmt.Println("  logout             - Log out of the current session")
 	fmt.Println("  search <beername>  - Search for a specific beer")
+	fmt.Println("  favorite <beername> - Add a beer to your favorites")
+	fmt.Println("  favorites          - Display your favorite beers")
+	fmt.Println("  remove <beername>  - Remove a beer from your favorites")
+	fmt.Println("  clear favs         - Clear all favorite beers")
 	fmt.Println("  help               - Show this help message")
 	fmt.Println("  exit, quit         - Exit the application")
 	return nil
@@ -219,6 +244,236 @@ func (ch *commandHandler) runCommand(s *state, cmd command) error {
 
 	}
 	return fmt.Errorf("command not found")
+
+}
+
+// create a title case function for beer names
+func toTitleCase(input string) string {
+	caser := cases.Title(language.English)
+	return caser.String(input)
+}
+
+// create a saveFavorites function to save favorite beers to a JSON file
+func saveFavorites(favorites Favorites) error {
+	// create or truncate the favorites file
+	file, err := os.Create("favorites.json")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// encode the favorites struct to JSON and write to file
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", " ")
+	err = encoder.Encode(favorites)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// create a loadFavorites function to load favorite beers from a JSON file
+func loadFavorites() (Favorites, error) {
+	var favorites Favorites
+
+	// open the favorites file
+	file, err := os.Open("favorites.json")
+	if err != nil {
+		return favorites, err
+	}
+	defer file.Close()
+
+	// decode the JSON data into the favorites struct
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&favorites)
+	if err != nil {
+		return favorites, err
+	}
+
+	return favorites, nil
+}
+
+// create a favorite command function
+func favoriteCommand(s *state, cmd command) error {
+	// check if beer name is provided
+	if len(cmd.args) == 0 {
+		return fmt.Errorf("beer name not provided")
+	}
+
+	// get the beer name from command arguments
+	beerName := toTitleCase(strings.Join(cmd.args, " "))
+
+	// load existing favorites
+	favorites, err := loadFavorites()
+	if err != nil {
+		// if file not found, initialize empty favorites
+		if os.IsNotExist(err) {
+			favorites = Favorites{Beers: []Beer{}}
+		} else {
+
+			// other errors
+			fmt.Println("Error loading favorites:", err)
+			return nil
+		}
+	}
+
+	// check if beer is already in favorites
+	for _, beer := range favorites.Beers {
+		if strings.EqualFold(beer.Name, beerName) {
+			fmt.Printf("Beer %q is already in your favorites.\n", beerName)
+			return nil
+		}
+	}
+
+	// find the beer in last search results
+
+	// initialize a pointer to hold the beer to add
+	var beerToAdd *Beer
+	found := false
+
+	if len(s.lastSearchResulsts) > 0 {
+		for _, beer := range s.lastSearchResulsts {
+			if strings.EqualFold(beer.Name, beerName) {
+				beerToAdd = &beer
+				found = true
+				break
+			}
+		}
+	}
+
+	if found {
+		// save the beer to favorites
+		favorites.Beers = append(favorites.Beers, *beerToAdd)
+		fmt.Printf("Beer %q added to favorites with all details\n", beerName)
+	} else {
+		// save a beer with only the name if not found in last search results
+		// create empty beer with only name
+		newBeer := Beer{Name: beerName}
+		// append to favorites
+		favorites.Beers = append(favorites.Beers, newBeer)
+		fmt.Printf("Beer %q added to favorites with name only\n", beerName)
+	}
+
+	// save updated favorites
+	err = saveFavorites(favorites)
+	if err != nil {
+		fmt.Println("Error saving favorites:", err)
+		return nil
+	}
+
+	fmt.Printf("Beer %q added to favorites!\n", beerName)
+	return nil
+}
+
+// display favorite beers command function
+func displayFavoritesCommand(s *state, cmd command) error {
+	// load existing favorites
+	favorites, err := loadFavorites()
+	if err != nil {
+		fmt.Println("error getting favorites", err)
+		return nil
+	}
+
+	// check if there are any favorites
+	if len(favorites.Beers) == 0 {
+		fmt.Println("No favorite beers found.")
+		return nil
+	}
+
+	// display favorite beers
+	fmt.Println("\nYour Favorite Beers:")
+	// iterate over favorite beers and print their names
+	for i, beer := range favorites.Beers {
+		fmt.Printf("\n--- Beer #%d ---\n", i+1)
+		fmt.Printf("Name: %s\n", beer.Name)
+
+		// Only show fields if they exist
+		if beer.Brewery != "" {
+			fmt.Printf("Brewery: %s\n", beer.Brewery)
+		}
+		if beer.Abv != "" {
+			fmt.Printf("ABV: %s\n", beer.Abv)
+		}
+		if beer.Ibu != "" {
+			fmt.Printf("IBU: %s\n", beer.Ibu)
+		}
+		if beer.Category != "" {
+			fmt.Printf("Category: %s\n", beer.Category)
+		}
+		if beer.Region != "" {
+			fmt.Printf("Region: %s\n", beer.Region)
+		}
+		if beer.Country != "" {
+			fmt.Printf("Country: %s\n", beer.Country)
+		}
+		if beer.Description != "" {
+			fmt.Printf("Description: %s\n", beer.Description)
+		}
+		fmt.Println()
+	}
+
+	return nil
+}
+
+// add a remove favorite command function
+func removeFavoriteCommand(s *state, cmd command) error {
+	// check if beer name is provided
+	if len(cmd.args) == 0 {
+		return fmt.Errorf("beer name not provided")
+	}
+
+	// get the beer name from command arguments
+	beerName := toTitleCase(strings.Join(cmd.args, " "))
+
+	// load existing favorites
+	favorites, err := loadFavorites()
+	if err != nil {
+		fmt.Println("error loading favorites", err)
+		return nil
+	}
+
+	// find and remove the beer from favorites (case-insensitive)
+	index := -1
+	for i, beer := range favorites.Beers {
+		// compare case-insensitively using strings.EqualFold
+		if strings.EqualFold(beer.Name, beerName) {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
+		fmt.Printf("Beer %q not found in favorites.\n", beerName)
+		return nil
+	}
+
+	// remove the beer from the slice
+	favorites.Beers = append(favorites.Beers[:index], favorites.Beers[index+1:]...)
+
+	// save updated favorites
+	err = saveFavorites(favorites)
+	if err != nil {
+		fmt.Println("error saving favorites", err)
+	}
+	fmt.Printf("Beer %q removed from favorites!\n", beerName)
+	return nil
+}
+
+// create a clear favorites command that removes all favorite beers
+func clearFavoritesCommand(s *state, cmd command) error {
+	// create an empty favorites struct
+	favorites := Favorites{Beers: []Beer{}}
+
+	// save the empty favorites to the file
+	err := saveFavorites(favorites)
+	if err != nil {
+		fmt.Println("error clearing favorites", err)
+		return nil
+	}
+
+	fmt.Println("All favorite beers have been cleared.")
+	return nil
 }
 
 // API Response wrapper structure
@@ -243,6 +498,11 @@ type Beer struct {
 	FoodPairing string `json:"food_pairing"`
 }
 
+// create a favorites struct to hold favorite beers
+type Favorites struct {
+	Beers []Beer `json:"beers"`
+}
+
 func main() {
 
 	fmt.Println("Welcome to the Beer Info App!")
@@ -260,7 +520,7 @@ func main() {
 	}
 
 	// greet the user
-	fmt.Printf("Hello there, %s!\n", username)
+	fmt.Printf("Hello there, %s!\n", toTitleCase(username))
 	fmt.Println("*****************************")
 
 	// load .env file
@@ -300,6 +560,10 @@ func main() {
 	ch.registerCommand("help", helpCommand)
 	ch.registerCommand("exit", exitCommand)
 	ch.registerCommand("quit", exitCommand)
+	ch.registerCommand("favorite", favoriteCommand)
+	ch.registerCommand("favorites", displayFavoritesCommand)
+	ch.registerCommand("remove", removeFavoriteCommand)
+	ch.registerCommand("clear favs", clearFavoritesCommand)
 
 	// CLI interaction section
 
@@ -308,7 +572,7 @@ func main() {
 
 		// display current user
 		if s.config.User != "" {
-			fmt.Printf("\nCurrent User: %s\n", s.config.User)
+			fmt.Printf("\nCurrent User: %s\n", toTitleCase(s.config.User))
 		} else {
 			fmt.Println("\nCurrent User: guest")
 		}
