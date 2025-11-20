@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/joho/godotenv"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -47,7 +48,8 @@ type commandHandler struct {
 func loginCommand(s *state, cmd command) error {
 	// check if username argument is provided
 	if len(cmd.args) == 0 {
-		return fmt.Errorf("username required")
+		color.Red("username required")
+		return nil
 	}
 
 	// get the username from the command arguments
@@ -55,7 +57,7 @@ func loginCommand(s *state, cmd command) error {
 	// set the username in the config
 	s.config.User = username
 	// print a success message
-	fmt.Printf("User %s logged in successfully\n", username)
+	color.Green("User %s logged in successfully\n", username)
 	return nil
 }
 
@@ -63,7 +65,8 @@ func loginCommand(s *state, cmd command) error {
 func logoutCommand(s *state, cmd command) error {
 	// check if user is logged in
 	if s.config.User == "" {
-		return fmt.Errorf("no user is currently logged in")
+		color.Yellow("no user is currently logged in")
+		return nil
 	}
 
 	// get the current username
@@ -76,8 +79,8 @@ func logoutCommand(s *state, cmd command) error {
 	s.lastSearchResulsts = []Beer{}
 
 	// print a success message
-	fmt.Printf("User %s logged out successfully\n", username)
-	fmt.Printf("Your favorite beers are saved and will be available when you log back in.")
+	color.Green("User %s logged out successfully\n", username)
+	color.Green("Your favorite beers are saved and will be available when you log back in.")
 	return nil
 }
 
@@ -85,7 +88,8 @@ func logoutCommand(s *state, cmd command) error {
 func searchCommand(s *state, cmd command) error {
 	// base case : check if search term is provided
 	if len(cmd.args) == 0 {
-		return fmt.Errorf("search term not provided")
+		color.Red("search term not provided")
+		return nil
 	}
 
 	// get the search term from command arguments
@@ -99,7 +103,7 @@ func searchCommand(s *state, cmd command) error {
 
 	// exit if user types "quit" or "exit"
 	if searchTerm == "quit" || searchTerm == "exit" {
-		fmt.Println("Thanks for using Beer Info App! Goodbye!")
+		color.Green("Thanks for using Beer Info App! Goodbye!")
 		return nil
 	}
 
@@ -111,7 +115,7 @@ func searchCommand(s *state, cmd command) error {
 
 	// check if API key is set
 	if apiKey == "" {
-		fmt.Println("API key not set. Please set the API key in the configuration.")
+		color.Yellow("API key not set. Please set the API key in the configuration.")
 		return nil
 	}
 
@@ -126,7 +130,7 @@ func searchCommand(s *state, cmd command) error {
 	// create a get request
 	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
-		fmt.Println("error creating request", err)
+		color.Red("error creating request", err)
 		return nil
 	}
 
@@ -138,7 +142,7 @@ func searchCommand(s *state, cmd command) error {
 	client := http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		fmt.Println("error making request", err)
+		color.Red("error making request", err)
 		return nil
 	}
 
@@ -151,13 +155,13 @@ func searchCommand(s *state, cmd command) error {
 	decoder := json.NewDecoder(res.Body)
 	err = decoder.Decode(&apiResponse)
 	if err != nil {
-		fmt.Println("Error decoding parameters", err)
+		color.Red("Error decoding parameters", err)
 		return nil
 	}
 
 	// Check if the API returned an error
 	if apiResponse.Error {
-		fmt.Printf("API returned an error (code: %d)\n", apiResponse.Code)
+		color.Red("API returned an error (code: %d)\n", apiResponse.Code)
 		return nil
 	}
 
@@ -165,30 +169,43 @@ func searchCommand(s *state, cmd command) error {
 	s.lastSearchResulsts = apiResponse.Data
 
 	// Print the decoded beer information
-	fmt.Printf("\n🍺 Found %d beers:\n\n", len(apiResponse.Data))
+	color.Green("\n🍺 Found %d beers:\n\n", len(apiResponse.Data))
 	for i, beer := range apiResponse.Data {
-		fmt.Printf("--- Beer #%d ---\n", i+1)
+		// create bold yellow
+		y := color.New(color.FgYellow, color.Bold)
+		y.Printf("--- Beer #%d ---\n", i+1)
 		fmt.Printf("Name: %s\n", beer.Name)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Brewery: %s\n", beer.Brewery)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("SKU: %s\n", beer.Sku)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("ABV: %s\n", beer.Abv)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("IBU: %s\n", beer.Ibu)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Category: %s\n", beer.Category)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Region: %s\n", beer.Region)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Country: %s\n", beer.Country)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Rating: %s\n", beer.Rating)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Food Pairing: %s\n", beer.FoodPairing)
+		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Description: %s\n", beer.Description)
+		color.Cyan("---------------------------------------------------")
 		fmt.Println()
 	}
 
 	// Ask user what to do next
 
-	fmt.Println("\nOptions:")
-	fmt.Println("  [s] Search again")
-	fmt.Println("  [m] Main menu")
-	fmt.Println("  [x] Exit")
-	fmt.Print("Your choice: ")
+	color.Cyan("\nOptions:")
+	color.Yellow("  [s] Search again")
+	color.Blue("  [m] Main menu")
+	color.Red("  [x] Exit")
+	color.White("Your choice: ")
 
 	var choice string
 	fmt.Scanln(&choice)
@@ -204,7 +221,7 @@ func searchCommand(s *state, cmd command) error {
 		helpCommand(s, command{})
 		return nil
 	case "x", "exit", "quit":
-		fmt.Println("Thanks for using Beer Info App! Goodbye!")
+		color.Green("Thanks for using Beer Info App! Goodbye!")
 		os.Exit(0)
 	default:
 		fmt.Println("Returning to main menu...")
@@ -215,7 +232,11 @@ func searchCommand(s *state, cmd command) error {
 
 // create a help command function
 func helpCommand(s *state, cmd command) error {
-	fmt.Println("\nAvailable commands:")
+	color.Magenta("\nAvailable commands:")
+	color.Cyan("---------------------------------------------------")
+	coloredText := color.New(color.FgCyan).SprintFunc()
+	fmt.Println(coloredText("  Command                   Description"))
+	fmt.Println(coloredText("  -------------             -----------"))
 	fmt.Println("  login <username>   - Log in with the specified username")
 	fmt.Println("  logout             - Log out of the current session")
 	fmt.Println("  search <beername>  - Search for a specific beer")
@@ -230,7 +251,7 @@ func helpCommand(s *state, cmd command) error {
 
 // create an exit command function
 func exitCommand(s *state, cmd command) error {
-	fmt.Println("Exiting the Beer Info App. Goodbye!")
+	color.Green("Exiting the Beer Info App. Goodbye!")
 	os.Exit(0)
 	return nil
 }
@@ -249,7 +270,8 @@ func (ch *commandHandler) runCommand(s *state, cmd command) error {
 		return handler(s, cmd)
 
 	}
-	return fmt.Errorf("command not found")
+	color.Red("command not found")
+	return nil
 
 }
 
@@ -323,7 +345,8 @@ func loadFavorites(username string) (Favorites, error) {
 func favoriteCommand(s *state, cmd command) error {
 	// check if beer name is provided
 	if len(cmd.args) == 0 {
-		return fmt.Errorf("beer name not provided")
+		color.Red("beer name not provided")
+		return nil
 	}
 
 	// get the beer name from command arguments
@@ -338,7 +361,7 @@ func favoriteCommand(s *state, cmd command) error {
 		} else {
 
 			// other errors
-			fmt.Println("Error loading favorites:", err)
+			color.Red("Error loading favorites:", err)
 			return nil
 		}
 	}
@@ -346,7 +369,7 @@ func favoriteCommand(s *state, cmd command) error {
 	// check if beer is already in favorites
 	for _, beer := range favorites.Beers {
 		if strings.EqualFold(beer.Name, beerName) {
-			fmt.Printf("Beer %q is already in your favorites.\n", beerName)
+			color.Yellow("Beer %q is already in your favorites.\n", beerName)
 			return nil
 		}
 	}
@@ -370,24 +393,24 @@ func favoriteCommand(s *state, cmd command) error {
 	if found {
 		// save the beer to favorites
 		favorites.Beers = append(favorites.Beers, *beerToAdd)
-		fmt.Printf("Beer %q added to favorites with all details\n", beerName)
+		color.Green("Beer %q added to favorites with all details\n", beerName)
 	} else {
 		// save a beer with only the name if not found in last search results
 		// create empty beer with only name
 		newBeer := Beer{Name: beerName}
 		// append to favorites
 		favorites.Beers = append(favorites.Beers, newBeer)
-		fmt.Printf("Beer %q added to favorites with name only\n", beerName)
+		color.Green("Beer %q added to favorites with name only\n", beerName)
 	}
 
 	// save updated favorites
 	err = saveFavorites(s.config.User, favorites)
 	if err != nil {
-		fmt.Println("Error saving favorites:", err)
+		color.Red("Error saving favorites:", err)
 		return nil
 	}
 
-	fmt.Printf("Beer %q added to favorites!\n", beerName)
+	color.Yellow("Beer %q added to favorites!\n", beerName)
 	return nil
 }
 
@@ -396,41 +419,42 @@ func displayFavoritesCommand(s *state, cmd command) error {
 	// load existing favorites
 	favorites, err := loadFavorites(s.config.User)
 	if err != nil {
-		fmt.Println("error getting favorites", err)
+		color.Red("error getting favorites", err)
 		return nil
 	}
 
 	// check if there are any favorites
 	if len(favorites.Beers) == 0 {
-		fmt.Println("No favorite beers found.")
+		color.Yellow("No favorite beers found.")
 		return nil
 	}
 
 	// display favorite beers
-	fmt.Println("\nYour Favorite Beers:")
+	color.Blue("\nYour Favorite Beers:")
 	// iterate over favorite beers and print their names
 	for i, beer := range favorites.Beers {
-		fmt.Printf("\n--- Beer #%d ---\n", i+1)
-		fmt.Printf("Name: %s\n", beer.Name)
+		d := color.New(color.FgCyan, color.Bold)
+		color.Magenta("\n--- Beer #%d ---\n", i+1)
+		d.Printf("Name: %s\n", beer.Name)
 
 		// Only show fields if they exist
 		if beer.Brewery != "" {
 			fmt.Printf("Brewery: %s\n", beer.Brewery)
 		}
 		if beer.Abv != "" {
-			fmt.Printf("ABV: %s\n", beer.Abv)
+			d.Printf("ABV: %s\n", beer.Abv)
 		}
 		if beer.Ibu != "" {
 			fmt.Printf("IBU: %s\n", beer.Ibu)
 		}
 		if beer.Category != "" {
-			fmt.Printf("Category: %s\n", beer.Category)
+			d.Printf("Category: %s\n", beer.Category)
 		}
 		if beer.Region != "" {
 			fmt.Printf("Region: %s\n", beer.Region)
 		}
 		if beer.Country != "" {
-			fmt.Printf("Country: %s\n", beer.Country)
+			d.Printf("Country: %s\n", beer.Country)
 		}
 		if beer.Description != "" {
 			fmt.Printf("Description: %s\n", beer.Description)
@@ -445,7 +469,8 @@ func displayFavoritesCommand(s *state, cmd command) error {
 func removeFavoriteCommand(s *state, cmd command) error {
 	// check if beer name is provided
 	if len(cmd.args) == 0 {
-		return fmt.Errorf("beer name not provided")
+		color.Yellow("beer name not provided")
+		return nil
 	}
 
 	// get the beer name from command arguments
@@ -454,7 +479,7 @@ func removeFavoriteCommand(s *state, cmd command) error {
 	// load existing favorites
 	favorites, err := loadFavorites(s.config.User)
 	if err != nil {
-		fmt.Println("error loading favorites", err)
+		color.Red("error loading favorites", err)
 		return nil
 	}
 
@@ -469,7 +494,7 @@ func removeFavoriteCommand(s *state, cmd command) error {
 	}
 
 	if index == -1 {
-		fmt.Printf("Beer %q not found in favorites.\n", beerName)
+		color.Yellow("Beer %q not found in favorites.\n", beerName)
 		return nil
 	}
 
@@ -479,9 +504,9 @@ func removeFavoriteCommand(s *state, cmd command) error {
 	// save updated favorites
 	err = saveFavorites(s.config.User, favorites)
 	if err != nil {
-		fmt.Println("error saving favorites", err)
+		color.Red("error saving favorites", err)
 	}
-	fmt.Printf("Beer %q removed from favorites!\n", beerName)
+	color.Green("Beer %q removed from favorites!\n", beerName)
 	return nil
 }
 
@@ -493,11 +518,11 @@ func clearFavoritesCommand(s *state, cmd command) error {
 	// save the empty favorites to the file
 	err := saveFavorites(s.config.User, favorites)
 	if err != nil {
-		fmt.Println("error clearing favorites", err)
+		color.Red("error clearing favorites", err)
 		return nil
 	}
 
-	fmt.Println("All favorite beers have been cleared.")
+	color.Green("All favorite beers have been cleared.")
 	return nil
 }
 
@@ -530,13 +555,18 @@ type Favorites struct {
 
 func main() {
 
-	fmt.Println("Welcome to the Beer Info App!")
-	fmt.Println("-----------------------------")
+	color.Cyan(` __      __   _                    _____      _   _          ___                ___       __         _             
+ \ \    / /__| |__ ___ _ __  ___  |_   _|__  | |_| |_  ___  | _ ) ___ ___ _ _  |_ _|_ _  / _|___    /_\  _ __ _ __ 
+  \ \/\/ / -_) / _/ _ \ '  \/ -_)   | |/ _ \ |  _| ' \/ -_) | _ \/ -_) -_) '_|  | || ' \|  _/ _ \  / _ \| '_ \ '_ \
+   \_/\_/\___|_\__\___/_|_|_\___|   |_|\___/  \__|_||_\___| |___/\___\___|_|   |___|_||_|_| \___/ /_/ \_\ .__/ .__/
+                                                                                                        |_|  |_|   `)
+
+	color.Cyan("--------------------------------------------------------------------------------------------------------------------")
 
 	// prompt the user to login or continue as guest
 
 	username := ""
-	fmt.Print("Enter your username (or press Enter to continue as guest): ")
+	color.Magenta("Enter your username (or press Enter to continue as guest): ")
 	fmt.Scanln(&username)
 
 	// If username is empty, set to "Guest"
@@ -545,20 +575,20 @@ func main() {
 	}
 
 	// greet the user
-	fmt.Printf("Hello there, %s!\n", toTitleCase(username))
-	fmt.Println("*****************************")
+	color.Magenta("Hello there, %s!\n", toTitleCase(username))
+	color.Cyan("********************************************************************************************************8*")
 
 	// load .env file
 	err := godotenv.Load()
 	if err != nil {
-		fmt.Println("Error loading .env file")
+		color.Red("Error loading .env file")
 		return
 	}
 
 	// get API key from .env file
 	apiKey := os.Getenv("API_KEY")
 	if apiKey == "" {
-		fmt.Println("API key not set")
+		color.Yellow("API key not set")
 		return
 	}
 
@@ -597,13 +627,13 @@ func main() {
 
 		// display current user
 		if s.config.User != "" {
-			fmt.Printf("\nCurrent User: %s\n", toTitleCase(s.config.User))
+			color.Magenta("\nCurrent User: %s\n", toTitleCase(s.config.User))
 		} else {
-			fmt.Println("\nCurrent User: guest")
+			color.Magenta("\nCurrent User: guest")
 		}
 
 		// prompt user for command
-		fmt.Println("\n> Enter a command (type 'help' for available commands): ")
+		color.Magenta("\n> Enter a command (type 'help' for available commands): ")
 		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
@@ -623,8 +653,8 @@ func main() {
 		// run the command
 		err := ch.runCommand(s, cmd)
 		if err != nil {
-			fmt.Println("Error executing command:", err)
-			fmt.Println("Type 'help' to see the list of available commands.")
+			color.Red("Error executing command:", err)
+			color.Blue("Type 'help' to see the list of available commands.")
 		}
 
 		// end of main loop
