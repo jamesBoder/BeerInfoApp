@@ -68,10 +68,16 @@ func logoutCommand(s *state, cmd command) error {
 
 	// get the current username
 	username := s.config.User
+
 	// clear the username in the config
 	s.config.User = ""
+
+	//clear last search results
+	s.lastSearchResulsts = []Beer{}
+
 	// print a success message
 	fmt.Printf("User %s logged out successfully\n", username)
+	fmt.Printf("Your favorite beers are saved and will be available when you log back in.")
 	return nil
 }
 
@@ -247,6 +253,20 @@ func (ch *commandHandler) runCommand(s *state, cmd command) error {
 
 }
 
+// create a helper function that returns the favorities filename for a given user
+func getUserFavoritesFilename(username string) string {
+	// if username is empty, use "guest"
+	if username == "" {
+		username = "guest"
+	}
+	// trim spaces and convert to lowercase
+	username = strings.TrimSpace(strings.ToLower(username))
+	// replace spaces with underscores
+	safeUsername := strings.ReplaceAll(username, " ", "_")
+	// return the filename
+	return fmt.Sprintf("favorites_%s.json", safeUsername)
+}
+
 // create a title case function for beer names
 func toTitleCase(input string) string {
 	caser := cases.Title(language.English)
@@ -254,9 +274,11 @@ func toTitleCase(input string) string {
 }
 
 // create a saveFavorites function to save favorite beers to a JSON file
-func saveFavorites(favorites Favorites) error {
+func saveFavorites(username string, favorites Favorites) error {
+	// get the filename for the user
+	filename := getUserFavoritesFilename(username)
 	// create or truncate the favorites file
-	file, err := os.Create("favorites.json")
+	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
@@ -274,11 +296,14 @@ func saveFavorites(favorites Favorites) error {
 }
 
 // create a loadFavorites function to load favorite beers from a JSON file
-func loadFavorites() (Favorites, error) {
+func loadFavorites(username string) (Favorites, error) {
 	var favorites Favorites
 
+	// get username
+	filename := getUserFavoritesFilename(username)
+
 	// open the favorites file
-	file, err := os.Open("favorites.json")
+	file, err := os.Open(filename)
 	if err != nil {
 		return favorites, err
 	}
@@ -305,7 +330,7 @@ func favoriteCommand(s *state, cmd command) error {
 	beerName := toTitleCase(strings.Join(cmd.args, " "))
 
 	// load existing favorites
-	favorites, err := loadFavorites()
+	favorites, err := loadFavorites(s.config.User)
 	if err != nil {
 		// if file not found, initialize empty favorites
 		if os.IsNotExist(err) {
@@ -356,7 +381,7 @@ func favoriteCommand(s *state, cmd command) error {
 	}
 
 	// save updated favorites
-	err = saveFavorites(favorites)
+	err = saveFavorites(s.config.User, favorites)
 	if err != nil {
 		fmt.Println("Error saving favorites:", err)
 		return nil
@@ -369,7 +394,7 @@ func favoriteCommand(s *state, cmd command) error {
 // display favorite beers command function
 func displayFavoritesCommand(s *state, cmd command) error {
 	// load existing favorites
-	favorites, err := loadFavorites()
+	favorites, err := loadFavorites(s.config.User)
 	if err != nil {
 		fmt.Println("error getting favorites", err)
 		return nil
@@ -427,7 +452,7 @@ func removeFavoriteCommand(s *state, cmd command) error {
 	beerName := toTitleCase(strings.Join(cmd.args, " "))
 
 	// load existing favorites
-	favorites, err := loadFavorites()
+	favorites, err := loadFavorites(s.config.User)
 	if err != nil {
 		fmt.Println("error loading favorites", err)
 		return nil
@@ -452,7 +477,7 @@ func removeFavoriteCommand(s *state, cmd command) error {
 	favorites.Beers = append(favorites.Beers[:index], favorites.Beers[index+1:]...)
 
 	// save updated favorites
-	err = saveFavorites(favorites)
+	err = saveFavorites(s.config.User, favorites)
 	if err != nil {
 		fmt.Println("error saving favorites", err)
 	}
@@ -466,7 +491,7 @@ func clearFavoritesCommand(s *state, cmd command) error {
 	favorites := Favorites{Beers: []Beer{}}
 
 	// save the empty favorites to the file
-	err := saveFavorites(favorites)
+	err := saveFavorites(s.config.User, favorites)
 	if err != nil {
 		fmt.Println("error clearing favorites", err)
 		return nil
