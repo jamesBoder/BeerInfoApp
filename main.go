@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/joho/godotenv"
@@ -240,6 +242,7 @@ func helpCommand(s *state, cmd command) error {
 	fmt.Println("  login <username>   - Log in with the specified username")
 	fmt.Println("  logout             - Log out of the current session")
 	fmt.Println("  search <beername>  - Search for a specific beer")
+	fmt.Println("  random             - Display a random beer from last search results")
 	fmt.Println("  favorite <beername> - Add a beer to your favorites")
 	fmt.Println("  favorites          - Display your favorite beers")
 	fmt.Println("  remove <beername>  - Remove a beer from your favorites")
@@ -434,7 +437,7 @@ func displayFavoritesCommand(s *state, cmd command) error {
 	// iterate over favorite beers and print their names
 	for i, beer := range favorites.Beers {
 		d := color.New(color.FgCyan, color.Bold)
-		color.Magenta("\n--- Beer #%d ---\n", i+1)
+		color.Yellow("\n--- Beer #%d ---\n", i+1)
 		d.Printf("Name: %s\n", beer.Name)
 
 		// Only show fields if they exist
@@ -523,6 +526,72 @@ func clearFavoritesCommand(s *state, cmd command) error {
 	}
 
 	color.Green("All favorite beers have been cleared.")
+	return nil
+}
+
+// create a randomCommand that displays a random beer from last search results
+func randomCommand(s *state, cmd command) error {
+	// check if ther are any last search results
+	if len(s.lastSearchResulsts) == 0 {
+		color.Yellow("No last search results found. Please perform a search first.")
+		return nil
+	}
+
+	// seed the random number generator
+	rand.Seed(time.Now().UnixNano())
+
+	// generate a random index
+	randomIndex := rand.Intn(len(s.lastSearchResulsts))
+
+	// get the random beer
+	randomBeer := s.lastSearchResulsts[randomIndex]
+
+	// display the random beer information
+	color.Green("\n🍺 Random Beer from Last Search Results:\n\n")
+	y := color.New(color.FgYellow, color.Bold)
+	y.Printf("--- Beer ---\n")
+	fmt.Printf("Name: %s\n", randomBeer.Name)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Brewery: %s\n", randomBeer.Brewery)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("SKU: %s\n", randomBeer.Sku)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("ABV: %s\n", randomBeer.Abv)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("IBU: %s\n", randomBeer.Ibu)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Category: %s\n", randomBeer.Category)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Region: %s\n", randomBeer.Region)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Country: %s\n", randomBeer.Country)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Rating: %s\n", randomBeer.Rating)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Food Pairing: %s\n", randomBeer.FoodPairing)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Description: %s\n", randomBeer.Description)
+	color.Cyan("---------------------------------------------------")
+	fmt.Println()
+
+	// ask user if they want to favorite the beer
+	color.Cyan("Would you like to add this beer to your favorites? (y/n): ")
+	var choice string
+	fmt.Scanln(&choice)
+	choice = strings.ToLower(strings.TrimSpace(choice))
+
+	if choice == "y" || choice == "yes" {
+		// create a command to favorite the beer
+		favCmd := command{
+			name: "favorite",
+			args: []string{randomBeer.Name},
+		}
+		// call the favorite command
+		return favoriteCommand(s, favCmd)
+	} else {
+		color.Cyan("Beer not added to favorites.")
+	}
+
 	return nil
 }
 
@@ -619,6 +688,7 @@ func main() {
 	ch.registerCommand("favorites", displayFavoritesCommand)
 	ch.registerCommand("remove", removeFavoriteCommand)
 	ch.registerCommand("clear favs", clearFavoritesCommand)
+	ch.registerCommand("random", randomCommand)
 
 	// CLI interaction section
 
