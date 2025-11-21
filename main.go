@@ -58,7 +58,12 @@ type commandHandler struct {
 func loginCommand(s *state, cmd command) error {
 	// check if username argument is provided
 	if len(cmd.args) == 0 {
-		color.Red("username required")
+		color.Red("❌ Error: Username is required")
+		color.Yellow("\n💡 Usage: login <username>")
+		color.Yellow("\n📖 Examples:")
+		color.Cyan("   login james")
+		color.Cyan("   login sarah")
+		color.Yellow("\n💭 Tip: Press Enter at startup to continue as guest")
 		return nil
 	}
 
@@ -91,7 +96,8 @@ func loginCommand(s *state, cmd command) error {
 func logoutCommand(s *state, cmd command) error {
 	// check if user is logged in
 	if s.config.User == "" {
-		color.Yellow("no user is currently logged in")
+		color.Yellow("⚠️ No user is currently logged in.")
+		color.Yellow("\n 💡 To log in, use the command: login <username>")
 		return nil
 	}
 
@@ -131,7 +137,13 @@ func logoutCommand(s *state, cmd command) error {
 func searchCommand(s *state, cmd command) error {
 	// base case : check if search term is provided
 	if len(cmd.args) == 0 {
-		color.Red("search term not provided")
+		color.Red("❌ Error: Search term is required")
+		color.Yellow("\n💡 Usage: search <beer name or brewery>")
+		color.Yellow("\n📖 Examples:")
+		color.Cyan("   search IPA")
+		color.Cyan("   search Sixpoint")
+		color.Cyan("   search \"Hazy IPA\"")
+		color.Yellow("\n💭 Tip: Use quotes for multi-word searches")
 		return nil
 	}
 
@@ -158,7 +170,12 @@ func searchCommand(s *state, cmd command) error {
 
 	// check if API key is set
 	if apiKey == "" {
-		color.Yellow("API key not set. Please set the API key in the configuration.")
+		color.Red("❌ Error: API key is not configured")
+		color.Yellow("\n🔍 The app needs an API key to search for beers")
+		color.Cyan("\n💡 How to fix:")
+		color.Cyan("   1. Create a file named '.env' in the app directory")
+		color.Cyan("   2. Add this line: API_KEY=your_api_key_here")
+		color.Cyan("   3. Replace 'your_api_key_here' with your actual RapidAPI key")
 		return nil
 	}
 
@@ -173,7 +190,14 @@ func searchCommand(s *state, cmd command) error {
 	// create a get request
 	req, err := http.NewRequest("GET", fullURL, nil)
 	if err != nil {
-		color.Red("error creating request", err)
+		color.Red("❌ Error: Could not connect to beer database")
+		color.Yellow("🔍 Reason: %v", err)
+		color.Cyan("\n💡 Possible solutions:")
+		color.Cyan("   • Check your internet connection")
+		color.Cyan("   • Verify your API key is still valid")
+		color.Cyan("   • The API service might be temporarily down")
+		color.Cyan("   • Try again in a few moments")
+		color.Yellow("\n🌐 API Status: https://rapidapi.com/status")
 		return nil
 	}
 
@@ -204,7 +228,45 @@ func searchCommand(s *state, cmd command) error {
 
 	// Check if the API returned an error
 	if apiResponse.Error {
-		color.Red("API returned an error (code: %d)\n", apiResponse.Code)
+		color.Red("❌ Error: Beer database returned an error")
+		color.Yellow("🔢 Error code: %d", apiResponse.Code)
+
+		// switch on error code
+
+		switch apiResponse.Code {
+		case 400:
+			color.Red("❌ Error: Bad request")
+			color.Yellow("🔍 Reason: Invalid search parameters")
+		case 401:
+			color.Red("❌ Error: Unauthorized")
+			color.Yellow("🔍 Reason: Invalid API key or access denied")
+		case 403:
+			color.Red("❌ Error: Forbidden")
+			color.Yellow("🔍 Reason: Access to the resource is forbidden")
+		case 404:
+			color.Red("❌ Error: Not found")
+			color.Yellow("🔍 Reason: The requested resource was not found")
+		case 500:
+			color.Red("❌ Error: Internal server error")
+			color.Yellow("🔍 Reason: The server encountered an error processing your request")
+			color.Cyan("   • This is not your fault")
+			color.Cyan("   • Try again in a few minutes")
+		default:
+			color.Red("❌ Error: Unknown error occurred (code %d)", apiResponse.Code)
+		}
+
+		return nil
+	}
+
+	if len(apiResponse.Data) == 0 {
+		color.Yellow("🔍 No beers found matching '%s'", searchTerm)
+		color.Cyan("\n💡 Suggestions:")
+		color.Cyan("   • Try a broader search term")
+		color.Cyan("   • Check your spelling")
+		color.Cyan("   • Try searching by brewery name")
+		color.Yellow("\n📖 Examples:")
+		color.Cyan("   search IPA")
+		color.Cyan("   search Sixpoint")
 		return nil
 	}
 
@@ -334,7 +396,7 @@ func (ch *commandHandler) runCommand(s *state, cmd command) error {
 		return handler(s, cmd)
 
 	}
-	color.Red("command not found")
+	color.Red("❌ Error: Unknown command '%s'", cmd.name)
 	return nil
 
 }
@@ -409,7 +471,13 @@ func loadFavorites(username string) (Favorites, error) {
 func favoriteCommand(s *state, cmd command) error {
 	// check if beer name is provided
 	if len(cmd.args) == 0 {
-		color.Red("beer name not provided")
+		color.Red("❌ Error: Beer name is required")
+		color.Yellow("\n💡 Usage: favorite <beer name>")
+		color.Yellow("\n📖 Examples:")
+		color.Cyan("   favorite Sixpoint Resin")
+		color.Cyan("   favorite \"Hazy IPA\"")
+		color.Yellow("\n💭 Tip: The beer should be from your last search results")
+		color.Cyan("   Or type 'search <name>' first to find a beer")
 		return nil
 	}
 
@@ -488,8 +556,12 @@ func displayFavoritesCommand(s *state, cmd command) error {
 	}
 
 	// check if there are any favorites
-	if len(favorites.Beers) == 0 {
-		color.Yellow("No favorite beers found.")
+	if err != nil || len(favorites.Beers) == 0 {
+		color.Yellow("📭 You don't have any favorite beers yet")
+		color.Cyan("\n💡 How to add favorites:")
+		color.Cyan("   1. Search for a beer: search IPA")
+		color.Cyan("   2. Add to favorites: favorite <beer name>")
+		color.Yellow("\n📖 Or type 'help' to see all commands")
 		return nil
 	}
 
@@ -539,7 +611,11 @@ func displayFavoritesCommand(s *state, cmd command) error {
 func removeFavoriteCommand(s *state, cmd command) error {
 	// check if beer name is provided
 	if len(cmd.args) == 0 {
-		color.Yellow("beer name not provided")
+		color.Yellow("⚠️ beer name not provided")
+		color.Cyan("\n💡 Usage: remove <beer name>")
+		color.Yellow("\n📖 Examples:")
+		color.Cyan("   remove Sixpoint Resin")
+		color.Cyan("   remove \"Hazy IPA\"")
 		return nil
 	}
 
@@ -564,7 +640,12 @@ func removeFavoriteCommand(s *state, cmd command) error {
 	}
 
 	if index == -1 {
-		color.Yellow("Beer %q not found in favorites.\n", beerName)
+		color.Yellow("⚠️  Beer '%s' is not in your favorites", beerName)
+		color.Cyan("\n💡 Possible reasons:")
+		color.Cyan("   • The beer name might be spelled differently")
+		color.Cyan("   • It might have already been removed")
+		color.Yellow("\n📋 View your current favorites:")
+		color.Cyan("   favorites")
 		return nil
 	}
 
@@ -611,7 +692,11 @@ func clearFavoritesCommand(s *state, cmd command) error {
 func randomCommand(s *state, cmd command) error {
 	// check if ther are any last search results
 	if len(s.lastSearchResults) == 0 {
-		color.Yellow("No last search results found. Please perform a search first.")
+		color.Yellow("⚠️  No last search results found. Please perform a search first.")
+		color.Cyan("\n💡 To use the random feature:")
+		color.Cyan("   1. First search for beers: search IPA")
+		color.Cyan("   2. Then get a random suggestion: random")
+		color.Yellow("\n💭 Tip: The random command picks from your last search")
 		return nil
 	}
 
@@ -727,7 +812,11 @@ func loadSearchHistory(username string) ([]SearchHistoryEntry, error) {
 func historyCommand(s *state, cmd command) error {
 	// check if there is any search history
 	if len(s.searchHistory) == 0 {
-		color.Yellow("No search history found.")
+		color.Yellow("📭 Your search history is empty")
+		color.Cyan("\n💡 Search history will appear here after you:")
+		color.Cyan("   • Perform your first search")
+		color.Cyan("   • Example: search IPA")
+		color.Yellow("\n💭 Tip: History is saved per user and persists between sessions")
 		return nil
 	}
 
@@ -749,7 +838,9 @@ func clearHistoryCommand(s *state, cmd command) error {
 
 	// check if there is any history to clear
 	if len(s.searchHistory) == 0 {
-		color.Yellow("No search history to clear.")
+		color.Yellow("⚠️ No search history to clear.")
+		color.Cyan("\n💡 Your search history is already empty.")
+		color.Cyan("   Perform searches to build your history.")
 		return nil
 	}
 
@@ -843,7 +934,16 @@ func main() {
 	// get API key from .env file
 	apiKey := os.Getenv("API_KEY")
 	if apiKey == "" {
-		color.Yellow("API key not set")
+		color.Red("❌ Error: API key not found in .env file")
+		color.Yellow("🔍 Checked file: .env")
+		color.Cyan("\n💡 How to fix:")
+		color.Cyan("   1. Open the .env file")
+		color.Cyan("   2. Make sure it contains:")
+		color.Cyan("      API_KEY=your_actual_key_here")
+		color.Cyan("   3. Save the file and restart the app")
+		color.Yellow("\n🔑 Get an API key:")
+		color.Cyan("   https://rapidapi.com/winevybe/api/beer9")
+		color.Yellow("\n⚠️  The app will now exit")
 		return
 	}
 
@@ -936,7 +1036,7 @@ func main() {
 		err := ch.runCommand(s, cmd)
 		if err != nil {
 			color.Red("Error executing command:", err)
-			color.Blue("Type 'help' to see the list of available commands.")
+			color.Blue("Type 'help' to see a full list of available commands.")
 		}
 
 		// end of main loop
