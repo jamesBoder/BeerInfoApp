@@ -40,5 +40,8 @@ go.work.sum
 # .md file
 *.md
 
+# except README.md
+!README.md
+
 # .json file
 *.json
