@@ -30,8 +30,16 @@ type config struct {
 // create state struct that holds a pointer to a config
 type state struct {
 	// pointer to config struct
-	config             *config
-	lastSearchResulsts []Beer // slice to hold last search results
+	config            *config
+	lastSearchResults []Beer               // slice to hold last search results
+	searchHistory     []SearchHistoryEntry // slice to hold search history
+}
+
+// create a struct to hold search history entries
+type SearchHistoryEntry struct {
+	Term      string    // search term
+	Timestamp time.Time // timestamp of the search
+	Results   []Beer    // slice of beers returned in the search
 }
 
 // create command struct
@@ -58,6 +66,22 @@ func loginCommand(s *state, cmd command) error {
 	username := cmd.args[0]
 	// set the username in the config
 	s.config.User = username
+
+	// load search history
+	history, err := loadSearchHistory(username)
+	if err != nil {
+		// if file not found, initialize empty history
+		if os.IsNotExist(err) {
+			s.searchHistory = []SearchHistoryEntry{}
+		} else {
+			// other errors
+			color.Red("error loading search history", err)
+			return nil
+		}
+	} else {
+		s.searchHistory = history
+	}
+
 	// print a success message
 	color.Green("User %s logged in successfully\n", username)
 	return nil
@@ -78,7 +102,24 @@ func logoutCommand(s *state, cmd command) error {
 	s.config.User = ""
 
 	//clear last search results
-	s.lastSearchResulsts = []Beer{}
+	s.lastSearchResults = []Beer{}
+
+	// clear search history
+	s.searchHistory = []SearchHistoryEntry{}
+
+	// save empty favorites for guest user
+	err := saveFavorites("guest", Favorites{Beers: []Beer{}})
+	if err != nil {
+		color.Red("error saving guest favorites", err)
+		return nil
+	}
+
+	// save empty search history for guest user
+	err = saveSearchHistory("guest", []SearchHistoryEntry{})
+	if err != nil {
+		color.Red("error saving guest search history", err)
+		return nil
+	}
 
 	// print a success message
 	color.Green("User %s logged out successfully\n", username)
@@ -168,7 +209,21 @@ func searchCommand(s *state, cmd command) error {
 	}
 
 	// save last search results to state
-	s.lastSearchResulsts = apiResponse.Data
+	s.lastSearchResults = apiResponse.Data
+
+	// save search history
+	historyEntry := SearchHistoryEntry{
+		Term:      searchTerm,
+		Timestamp: time.Now(),
+		Results:   apiResponse.Data,
+	}
+	s.searchHistory = append(s.searchHistory, historyEntry)
+
+	// persist search history to file
+	err = saveSearchHistory(s.config.User, s.searchHistory)
+	if err != nil {
+		color.Yellow("Warning: Could not save search history: %v\n", err)
+	}
 
 	// Print the decoded beer information
 	color.Green("\n🍺 Found %d beers:\n\n", len(apiResponse.Data))
@@ -187,6 +242,10 @@ func searchCommand(s *state, cmd command) error {
 		fmt.Printf("IBU: %s\n", beer.Ibu)
 		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Category: %s\n", beer.Category)
+		color.Cyan("---------------------------------------------------")
+		fmt.Printf("Subcategory_1: %s\n", beer.SubCategory_1)
+		color.Cyan("---------------------------------------------------")
+		fmt.Printf("Subcategory_2: %s\n", beer.SubCategory_2)
 		color.Cyan("---------------------------------------------------")
 		fmt.Printf("Region: %s\n", beer.Region)
 		color.Cyan("---------------------------------------------------")
@@ -247,6 +306,8 @@ func helpCommand(s *state, cmd command) error {
 	fmt.Println("  favorites          - Display your favorite beers")
 	fmt.Println("  remove <beername>  - Remove a beer from your favorites")
 	fmt.Println("  clear favs         - Clear all favorite beers")
+	fmt.Println("  history            - Display your search history")
+	fmt.Println("  clear history      - Clear your search history")
 	fmt.Println("  help               - Show this help message")
 	fmt.Println("  exit, quit         - Exit the application")
 	return nil
@@ -383,8 +444,8 @@ func favoriteCommand(s *state, cmd command) error {
 	var beerToAdd *Beer
 	found := false
 
-	if len(s.lastSearchResulsts) > 0 {
-		for _, beer := range s.lastSearchResulsts {
+	if len(s.lastSearchResults) > 0 {
+		for _, beer := range s.lastSearchResults {
 			if strings.EqualFold(beer.Name, beerName) {
 				beerToAdd = &beer
 				found = true
@@ -422,7 +483,7 @@ func displayFavoritesCommand(s *state, cmd command) error {
 	// load existing favorites
 	favorites, err := loadFavorites(s.config.User)
 	if err != nil {
-		color.Red("error getting favorites", err)
+		color.Yellow("favorites is empty. Type 'help' to add a favorite beer", err)
 		return nil
 	}
 
@@ -452,6 +513,12 @@ func displayFavoritesCommand(s *state, cmd command) error {
 		}
 		if beer.Category != "" {
 			d.Printf("Category: %s\n", beer.Category)
+		}
+		if beer.SubCategory_1 != "" {
+			fmt.Printf("Subcategory 1: %s\n", beer.SubCategory_1)
+		}
+		if beer.SubCategory_2 != "" {
+			d.Printf("Subcategory 2: %s\n", beer.SubCategory_2)
 		}
 		if beer.Region != "" {
 			fmt.Printf("Region: %s\n", beer.Region)
@@ -518,6 +585,17 @@ func clearFavoritesCommand(s *state, cmd command) error {
 	// create an empty favorites struct
 	favorites := Favorites{Beers: []Beer{}}
 
+	// ask are you sure if you want to clear favorites list
+	color.Cyan("Are you sure you want to clear all your favorite beers? (y/n): ")
+	var choice string
+	fmt.Scanln(&choice)
+	choice = strings.ToLower(strings.TrimSpace(choice))
+
+	if choice != "y" && choice != "yes" {
+		color.Cyan("Favorites not cleared.")
+		return nil
+	}
+
 	// save the empty favorites to the file
 	err := saveFavorites(s.config.User, favorites)
 	if err != nil {
@@ -532,7 +610,7 @@ func clearFavoritesCommand(s *state, cmd command) error {
 // create a randomCommand that displays a random beer from last search results
 func randomCommand(s *state, cmd command) error {
 	// check if ther are any last search results
-	if len(s.lastSearchResulsts) == 0 {
+	if len(s.lastSearchResults) == 0 {
 		color.Yellow("No last search results found. Please perform a search first.")
 		return nil
 	}
@@ -541,10 +619,10 @@ func randomCommand(s *state, cmd command) error {
 	rand.Seed(time.Now().UnixNano())
 
 	// generate a random index
-	randomIndex := rand.Intn(len(s.lastSearchResulsts))
+	randomIndex := rand.Intn(len(s.lastSearchResults))
 
 	// get the random beer
-	randomBeer := s.lastSearchResulsts[randomIndex]
+	randomBeer := s.lastSearchResults[randomIndex]
 
 	// display the random beer information
 	color.Green("\n🍺 Random Beer from Last Search Results:\n\n")
@@ -561,6 +639,10 @@ func randomCommand(s *state, cmd command) error {
 	fmt.Printf("IBU: %s\n", randomBeer.Ibu)
 	color.Cyan("---------------------------------------------------")
 	fmt.Printf("Category: %s\n", randomBeer.Category)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Subcategory_1: %s\n", randomBeer.SubCategory_1)
+	color.Cyan("---------------------------------------------------")
+	fmt.Printf("Subcategory_2: %s\n", randomBeer.SubCategory_2)
 	color.Cyan("---------------------------------------------------")
 	fmt.Printf("Region: %s\n", randomBeer.Region)
 	color.Cyan("---------------------------------------------------")
@@ -595,6 +677,108 @@ func randomCommand(s *state, cmd command) error {
 	return nil
 }
 
+// create a saveSearchHistory function to persist search history to a JSON file
+func saveSearchHistory(username string, history []SearchHistoryEntry) error {
+	// get the filename for the user
+	filename := fmt.Sprintf("search_history_%s.json", strings.ToLower(strings.ReplaceAll(username, " ", "_")))
+	// create or truncate the search history file
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// encode the search history slice to JSON and write to file
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", " ")
+	err = encoder.Encode(history)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// create a loadSearchHistory function to load search history from a JSON file
+func loadSearchHistory(username string) ([]SearchHistoryEntry, error) {
+	var history []SearchHistoryEntry
+
+	// get username
+	filename := fmt.Sprintf("search_history_%s.json", strings.ToLower(strings.ReplaceAll(username, " ", "_")))
+
+	// open the search history file
+	file, err := os.Open(filename)
+	if err != nil {
+		return history, err
+	}
+	defer file.Close()
+
+	// decode the JSON data into the history slice
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&history)
+	if err != nil {
+		return history, err
+	}
+
+	return history, nil
+}
+
+// create a history command function to display search history
+func historyCommand(s *state, cmd command) error {
+	// check if there is any search history
+	if len(s.searchHistory) == 0 {
+		color.Yellow("No search history found.")
+		return nil
+	}
+
+	// display search history
+	color.Blue("\nYour Search History:")
+	for i, entry := range s.searchHistory {
+		color.Yellow("\n--- Search #%d ---\n", i+1)
+		fmt.Printf("Term: %s\n", entry.Term)
+		fmt.Printf("Timestamp: %s\n", entry.Timestamp.Format(time.RFC1123))
+		fmt.Printf("Results Found: %d\n", len(entry.Results))
+	}
+	return nil
+}
+
+// add a clear history command function to clear search history
+func clearHistoryCommand(s *state, cmd command) error {
+	// CREATE an empty history slice
+	history := []SearchHistoryEntry{}
+
+	// check if there is any history to clear
+	if len(s.searchHistory) == 0 {
+		color.Yellow("No search history to clear.")
+		return nil
+	}
+
+	// ask are you sure
+	color.Cyan("Are you sure you want to clear your search history? (y/n): ")
+	var choice string
+	fmt.Scanln(&choice)
+	choice = strings.ToLower(strings.TrimSpace(choice))
+
+	if choice != "y" && choice != "yes" {
+		color.Cyan("Search history not cleared.")
+		return nil
+	}
+	// save the empty history to the file
+	err := saveSearchHistory(s.config.User, history)
+	if err != nil {
+		color.Red("error clearing search history", err)
+		return nil
+	}
+
+	// clear in-memory history
+	s.searchHistory = []SearchHistoryEntry{}
+
+	color.Green("All search history has been cleared.")
+	return nil
+}
+
+// ------------------ Structs for API Response ------------------ //
+
 // API Response wrapper structure
 type APIResponse struct {
 	Code  int    `json:"code"`  // status code goes into apiResponse.Code
@@ -604,17 +788,19 @@ type APIResponse struct {
 
 // Beer struct matching the actual API response
 type Beer struct {
-	Sku         string `json:"sku"`
-	Name        string `json:"name"`
-	Brewery     string `json:"brewery"`
-	Description string `json:"description"`
-	Region      string `json:"region"`
-	Country     string `json:"country"`
-	Abv         string `json:"abv"`
-	Ibu         string `json:"ibu"`
-	Category    string `json:"category"`
-	Rating      string `json:"rating"`
-	FoodPairing string `json:"food_pairing"`
+	Sku           string `json:"sku"`
+	Name          string `json:"name"`
+	Brewery       string `json:"brewery"`
+	Description   string `json:"description"`
+	Region        string `json:"region"`
+	Country       string `json:"country"`
+	Abv           string `json:"abv"`
+	Ibu           string `json:"ibu"`
+	Category      string `json:"category"`
+	Rating        string `json:"rating"`
+	FoodPairing   string `json:"food_pairing"`
+	SubCategory_1 string `json:"sub_category_1"`
+	SubCategory_2 string `json:"sub_category_2"`
 }
 
 // create a favorites struct to hold favorite beers
@@ -667,9 +853,22 @@ func main() {
 		User:   username,
 	}
 
+	// load search history for the user
+	history, err := loadSearchHistory(username)
+	if err != nil {
+		// if file not found, initialize empty history
+		if os.IsNotExist(err) {
+			history = []SearchHistoryEntry{}
+		} else {
+			color.Yellow("Warning: Could not load search history: %v\n", err)
+			history = []SearchHistoryEntry{}
+		}
+	}
+
 	// create a state instance
 	s := &state{
-		config: cfg,
+		config:        cfg,
+		searchHistory: history,
 	}
 
 	// create a commandHandler instance
@@ -689,6 +888,8 @@ func main() {
 	ch.registerCommand("remove", removeFavoriteCommand)
 	ch.registerCommand("clear favs", clearFavoritesCommand)
 	ch.registerCommand("random", randomCommand)
+	ch.registerCommand("history", historyCommand)
+	ch.registerCommand("clear history", clearHistoryCommand)
 
 	// CLI interaction section
 
@@ -715,9 +916,20 @@ func main() {
 		}
 
 		// parse input into command struct
-		cmd := command{
-			name: parts[0],  // first part is command name
-			args: parts[1:], // remaining parts are arguments
+		// handle multi-word commands like "clear favs" and "clear history"
+		var cmd command
+		if len(parts) >= 2 && parts[0] == "clear" && (parts[1] == "favs" || parts[1] == "history") {
+			// multi-word command
+			cmd = command{
+				name: parts[0] + " " + parts[1], // combine first two parts
+				args: parts[2:],                 // remaining parts are arguments
+			}
+		} else {
+			// single-word command
+			cmd = command{
+				name: parts[0],  // first part is command name
+				args: parts[1:], // remaining parts are arguments
+			}
 		}
 
 		// run the command
