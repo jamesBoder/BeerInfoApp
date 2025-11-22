@@ -112,7 +112,6 @@ BeerInfoApp/
 ├── go.sum                 # Go dependencies
 ├── favorites_*.json       # User-specific favorites (auto-generated)
 ├── README.md              # This file
-└── IMPROVEMENTS.md        # Future improvement ideas
 ```
 
 ## 🎨 Color Scheme
@@ -149,10 +148,11 @@ Contributions, issues, and feature requests are welcome!
 
 ## 👤 Author
 
-Your Name
+James 'boder' Macean
 
 ## 🙏 Acknowledgments
 
 - Beer9 API for providing beer data
 - RapidAPI for API hosting
 - The Go community for excellent packages
+- You for trying out this application

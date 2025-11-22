@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -370,6 +371,7 @@ func helpCommand(s *state, cmd command) error {
 	fmt.Println("  clear favs         - Clear all favorite beers")
 	fmt.Println("  history            - Display your search history")
 	fmt.Println("  clear history      - Clear your search history")
+	fmt.Println("  export favs <format> - Export your favorites (json/csv)")
 	fmt.Println("  help               - Show this help message")
 	fmt.Println("  exit, quit         - Exit the application")
 	return nil
@@ -868,6 +870,141 @@ func clearHistoryCommand(s *state, cmd command) error {
 	return nil
 }
 
+// ---------------- Print Helper Functions ------------------ //
+
+// export beers to JSON function
+func exportBeersToJSON(beers []Beer, filename string) error {
+	// create or truncate the output file
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	// close the file when done
+	defer file.Close()
+
+	// create a JSON Encoder with indentation
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+
+	// encode the beers slice to JSON
+	err = encoder.Encode(beers)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// export beers to CSV function
+func exportBeersToCSV(beers []Beer, filename string) error {
+	// create or truncate the output file
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	// close the file when done
+	defer file.Close()
+
+	// create a csv writer
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// write the header row with all field names
+	header := []string{"SKU", "Name", "Brewery", "Description", "Region", "Country", "ABV", "IBU", "Category", "Rating", "Food Pairing", "SubCategory_1", "SubCategory_2"}
+	err = writer.Write(header)
+	if err != nil {
+		return err
+	}
+
+	// iterate over beers and write each as a row
+	for _, beer := range beers {
+		row := []string{
+			beer.Sku,
+			beer.Name,
+			beer.Brewery,
+			beer.Description,
+			beer.Region,
+			beer.Country,
+			beer.Abv,
+			beer.Ibu,
+			beer.Category,
+			beer.Rating,
+			beer.FoodPairing,
+			beer.SubCategory_1,
+			beer.SubCategory_2,
+		}
+		err = writer.Write(row)
+		if err != nil {
+			return err
+		}
+
+	}
+	return nil
+}
+
+// createa a export favorites command function
+func exportFavoritesCommand(s *state, cmd command) error {
+	// check if format is provided
+	if len(cmd.args) == 0 {
+		color.Red("❌ Error: Format is required")
+		color.Yellow("\n💡 Usage: export favorites <format>")
+		color.Yellow("\n📖 Examples:")
+		color.Cyan("   export favorites json")
+		color.Cyan("   export favorites csv")
+		return nil
+	}
+
+	// get the format from the command arguments
+	format := strings.ToLower(strings.TrimSpace(cmd.args[0]))
+	// check file extension
+
+	if format != "json" && format != "csv" {
+		color.Red("❌ Error: Unsupported format '%s'", format)
+		color.Yellow("\n💡 Supported formats: json, csv")
+		return nil
+	}
+
+	// load existing favorites
+	favorites, err := loadFavorites(s.config.User)
+	if err != nil {
+		color.Red("error loading favorites", err)
+		color.Cyan("\n💡 Make sure you have favorite beers saved first.")
+		return nil
+	}
+
+	// check if there are any favorites
+	if len(favorites.Beers) == 0 {
+		color.Yellow("📭 You don't have any favorite beers to export.")
+		color.Cyan("\n💡 Add favorite beers first using the 'favorite' command.")
+		return nil
+	}
+
+	// generate filename with timestamp
+	timestamp := time.Now().Format("20060102_150405")
+	safeUsername := strings.ToLower(strings.ReplaceAll(s.config.User, " ", "_"))
+	outputFilename := fmt.Sprintf("favorites_%s_%s.%s", safeUsername, timestamp, format)
+
+	// call appropriate export function based on format
+	if format == "json" {
+		err = exportBeersToJSON(favorites.Beers, outputFilename)
+	} else if format == "csv" {
+		err = exportBeersToCSV(favorites.Beers, outputFilename)
+	}
+	if err != nil {
+		color.Red("error exporting favorites", err)
+		return nil
+	}
+
+	color.Green("✅ Successfully exported %d beers to %s", len(favorites.Beers), outputFilename)
+	color.Yellow("\n📁 File location: %s", outputFilename)
+	color.Cyan("\n💡 You can now:")
+	color.Cyan("   • Open the file in a text editor")
+	color.Cyan("   • Import it into a spreadsheet (for CSV)")
+	color.Cyan("   • Share it with friends")
+
+	return nil
+}
+
 // ------------------ Structs for API Response ------------------ //
 
 // API Response wrapper structure
@@ -990,6 +1127,7 @@ func main() {
 	ch.registerCommand("random", randomCommand)
 	ch.registerCommand("history", historyCommand)
 	ch.registerCommand("clear history", clearHistoryCommand)
+	ch.registerCommand("export favs", exportFavoritesCommand)
 
 	// CLI interaction section
 
@@ -1006,6 +1144,7 @@ func main() {
 		// prompt user for command
 		color.Magenta("\n> Enter a command (type 'help' for available commands): ")
 		reader := bufio.NewReader(os.Stdin)
+		// read user input
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
@@ -1018,7 +1157,8 @@ func main() {
 		// parse input into command struct
 		// handle multi-word commands like "clear favs" and "clear history"
 		var cmd command
-		if len(parts) >= 2 && parts[0] == "clear" && (parts[1] == "favs" || parts[1] == "history") {
+		if len(parts) >= 2 && parts[0] == "clear" && (parts[1] == "favs" || parts[1] == "history") || len(parts) >= 2 && parts[0] == "export" && parts[1] == "favorites" {
+
 			// multi-word command
 			cmd = command{
 				name: parts[0] + " " + parts[1], // combine first two parts
