@@ -2,8 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 
@@ -18,6 +16,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/jamesBoder/BeerInfoApp.git/internal/api"
+	"github.com/jamesBoder/BeerInfoApp.git/internal/export"
 	"github.com/jamesBoder/BeerInfoApp.git/internal/models"
 	"github.com/jamesBoder/BeerInfoApp.git/internal/storage"
 )
@@ -120,12 +119,6 @@ func searchCommand(s *models.State, cmd models.Command) error {
 	// get the search term from command arguments
 	var searchTerm string = cmd.Args[0]
 
-	// get the API key from config
-	//apiKey := ""
-	//if s != nil && s.Config != nil {
-	//	apiKey = s.Config.APIKey
-	//}
-
 	// exit if user types "quit" or "exit"
 	if searchTerm == "quit" || searchTerm == "exit" {
 		color.Green("Thanks for using Beer Info App! Goodbye!")
@@ -137,17 +130,6 @@ func searchCommand(s *models.State, cmd models.Command) error {
 		fmt.Println("Please enter a valid beer name.")
 		return nil
 	}
-
-	// check if API key is set
-	//if apiKey == "" {
-	//color.Red("❌ Error: API key is not configured")
-	//color.Yellow("\n🔍 The app needs an API key to search for beers")
-	//color.Cyan("\n💡 How to fix:")
-	//color.Cyan("   1. Create a file named '.env' in the app directory")
-	//color.Cyan("   2. Add this line: API_KEY=your_api_key_here")
-	//color.Cyan("   3. Replace 'your_api_key_here' with your actual RapidAPI key")
-	//return nil
-	//}
 
 	// API interaction section
 
@@ -312,7 +294,7 @@ func helpCommand(s *models.State, cmd models.Command) error {
 	fmt.Println("  clear favs         - Clear all favorite beers")
 	fmt.Println("  history            - Display your search history")
 	fmt.Println("  clear history      - Clear your search history")
-	fmt.Println("  export favs <format> - Export your favorites (json/csv)")
+	fmt.Println("  export favs <format> - Export your favorites (json/csv/txt)")
 	fmt.Println("  help               - Show this help message")
 	fmt.Println("  exit, quit         - Exit the application")
 	return nil
@@ -688,136 +670,54 @@ func clearHistoryCommand(s *models.State, cmd models.Command) error {
 
 // ---------------- Print Helper Functions ------------------ //
 
-// export beers to JSON function
-func exportBeersToJSON(beers []models.Beer, filename string) error {
-	// create or truncate the output file
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	// close the file when done
-	defer file.Close()
-
-	// create a JSON Encoder with indentation
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-
-	// encode the beers slice to JSON
-	err = encoder.Encode(beers)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// export beers to CSV function
-func exportBeersToCSV(beers []models.Beer, filename string) error {
-	// create or truncate the output file
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	// close the file when done
-	defer file.Close()
-
-	// create a csv writer
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// write the header row with all field names
-	header := []string{"SKU", "Name", "Brewery", "Description", "Region", "Country", "ABV", "IBU", "Category", "Rating", "Food Pairing", "SubCategory_1", "SubCategory_2"}
-	err = writer.Write(header)
-	if err != nil {
-		return err
-	}
-
-	// iterate over beers and write each as a row
-	for _, beer := range beers {
-		row := []string{
-			beer.Sku,
-			beer.Name,
-			beer.Brewery,
-			beer.Description,
-			beer.Region,
-			beer.Country,
-			beer.Abv,
-			beer.Ibu,
-			beer.Category,
-			beer.Rating,
-			beer.FoodPairing,
-			beer.SubCategory_1,
-			beer.SubCategory_2,
-		}
-		err = writer.Write(row)
-		if err != nil {
-			return err
-		}
-
-	}
-	return nil
-}
-
 // createa a export favorites command function
 func exportFavoritesCommand(s *models.State, cmd models.Command) error {
-	// check if format is provided
+	// validate format argument
 	if len(cmd.Args) == 0 {
-		color.Red("❌ Error: Format is required")
-		color.Yellow("\n💡 Usage: export favorites <format>")
+		color.Red("❌ Error: Export format is required (json/csv/txt)")
+		color.Yellow("\n💡 Usage: export favs <format>")
 		color.Yellow("\n📖 Examples:")
-		color.Cyan("   export favorites json")
-		color.Cyan("   export favorites csv")
+		color.Cyan("   export favs json")
+		color.Cyan("   export favs csv")
+		color.Cyan("   export favs txt")
 		return nil
 	}
 
-	// get the format from the command arguments
-	format := strings.ToLower(strings.TrimSpace(cmd.Args[0]))
-	// check file extension
-
-	if format != "json" && format != "csv" {
-		color.Red("❌ Error: Unsupported format '%s'", format)
-		color.Yellow("\n💡 Supported formats: json, csv")
-		return nil
-	}
-
-	// load existing favorites
+	// load favorites from storage
 	favorites, err := storage.LoadFavorites(s.Config.User)
 	if err != nil {
 		color.Red("error loading favorites", err)
-		color.Cyan("\n💡 Make sure you have favorite beers saved first.")
 		return nil
 	}
 
-	// check if there are any favorites
-	if len(favorites.Beers) == 0 {
-		color.Yellow("📭 You don't have any favorite beers to export.")
-		color.Cyan("\n💡 Add favorite beers first using the 'favorite' command.")
+	// get appropriate exporter using factory
+	format := strings.ToLower(cmd.Args[0])
+	var exporter export.Exporter
+
+	switch format {
+	case "json":
+		exporter = export.NewJSONExporter()
+	case "csv":
+		exporter = export.NewCSVExporter()
+	case "txt":
+		exporter = export.NewTXTExporter()
+	default:
+		color.Red("❌ Error: Unsupported export format %q. Use 'json', 'csv', or 'txt'.", format)
 		return nil
 	}
 
-	// generate filename with timestamp
-	timestamp := time.Now().Format("20060102_150405")
-	safeUsername := strings.ToLower(strings.ReplaceAll(s.Config.User, " ", "_"))
-	outputFilename := fmt.Sprintf("favorites_%s_%s.%s", safeUsername, timestamp, format)
+	// generate filename
+	filename := export.GenerateFilename(s.Config.User, "favorites", format)
 
-	// call appropriate export function based on format
-	if format == "json" {
-		err = exportBeersToJSON(favorites.Beers, outputFilename)
-	} else if format == "csv" {
-		err = exportBeersToCSV(favorites.Beers, outputFilename)
-	}
+	// call the exporter.Export() method
+	err = exporter.Export(favorites.Beers, filename)
 	if err != nil {
-		color.Red("error exporting favorites", err)
+		color.Red("❌ Error: Failed to export favorites: %v", err)
 		return nil
 	}
 
-	color.Green("✅ Successfully exported %d beers to %s", len(favorites.Beers), outputFilename)
-	color.Yellow("\n📁 File location: %s", outputFilename)
-	color.Cyan("\n💡 You can now:")
-	color.Cyan("   • Open the file in a text editor")
-	color.Cyan("   • Import it into a spreadsheet (for CSV)")
-	color.Cyan("   • Share it with friends")
-
+	// display success msg with file location
+	color.Green("✅ Favorites exported successfully to %s", filename)
 	return nil
 }
 
@@ -940,9 +840,9 @@ func main() {
 		}
 
 		// parse input into command struct
-		// handle multi-word commands like "clear favs" and "clear history"
+		// handle multi-word commands like "clear favs", "clear history", and "export favs"
 		var cmd models.Command
-		if len(parts) >= 2 && parts[0] == "clear" && (parts[1] == "favs" || parts[1] == "history") || len(parts) >= 2 && parts[0] == "export" && parts[1] == "favorites" {
+		if len(parts) >= 2 && parts[0] == "clear" && (parts[1] == "favs" || parts[1] == "history") || len(parts) >= 2 && parts[0] == "export" && parts[1] == "favs" {
 
 			// multi-word command
 			cmd = models.Command{
