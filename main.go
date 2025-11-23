@@ -6,8 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"net/http"
-	"net/url"
+
 	"os"
 	"strings"
 	"time"
@@ -18,7 +17,9 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/jamesBoder/BeerInfoApp.git/internal/api"
 	"github.com/jamesBoder/BeerInfoApp.git/internal/models"
+	"github.com/jamesBoder/BeerInfoApp.git/internal/storage"
 )
 
 // build command functions here
@@ -42,7 +43,7 @@ func loginCommand(s *models.State, cmd models.Command) error {
 	s.Config.User = username
 
 	// load search history
-	history, err := loadSearchHistory(username)
+	history, err := storage.LoadSearchHistory(username)
 	if err != nil {
 		// if file not found, initialize empty history
 		if os.IsNotExist(err) {
@@ -83,14 +84,14 @@ func logoutCommand(s *models.State, cmd models.Command) error {
 	s.SearchHistory = []models.SearchHistoryEntry{}
 
 	// save empty favorites for guest user
-	err := saveFavorites("guest", models.Favorites{Beers: []models.Beer{}})
+	err := storage.SaveFavorites("guest", models.Favorites{Beers: []models.Beer{}})
 	if err != nil {
 		color.Red("error saving guest favorites", err)
 		return nil
 	}
 
 	// save empty search history for guest user
-	err = saveSearchHistory("guest", []models.SearchHistoryEntry{})
+	err = storage.SaveSearchHistory("guest", []models.SearchHistoryEntry{})
 	if err != nil {
 		color.Red("error saving guest search history", err)
 		return nil
@@ -120,10 +121,10 @@ func searchCommand(s *models.State, cmd models.Command) error {
 	var searchTerm string = cmd.Args[0]
 
 	// get the API key from config
-	apiKey := ""
-	if s != nil && s.Config != nil {
-		apiKey = s.Config.APIKey
-	}
+	//apiKey := ""
+	//if s != nil && s.Config != nil {
+	//	apiKey = s.Config.APIKey
+	//}
 
 	// exit if user types "quit" or "exit"
 	if searchTerm == "quit" || searchTerm == "exit" {
@@ -138,26 +139,23 @@ func searchCommand(s *models.State, cmd models.Command) error {
 	}
 
 	// check if API key is set
-	if apiKey == "" {
-		color.Red("❌ Error: API key is not configured")
-		color.Yellow("\n🔍 The app needs an API key to search for beers")
-		color.Cyan("\n💡 How to fix:")
-		color.Cyan("   1. Create a file named '.env' in the app directory")
-		color.Cyan("   2. Add this line: API_KEY=your_api_key_here")
-		color.Cyan("   3. Replace 'your_api_key_here' with your actual RapidAPI key")
-		return nil
-	}
+	//if apiKey == "" {
+	//color.Red("❌ Error: API key is not configured")
+	//color.Yellow("\n🔍 The app needs an API key to search for beers")
+	//color.Cyan("\n💡 How to fix:")
+	//color.Cyan("   1. Create a file named '.env' in the app directory")
+	//color.Cyan("   2. Add this line: API_KEY=your_api_key_here")
+	//color.Cyan("   3. Replace 'your_api_key_here' with your actual RapidAPI key")
+	//return nil
+	//}
 
 	// API interaction section
 
-	// build the URL with proper encoding
-	baseURL := "https://beer9.p.rapidapi.com/"
-	params := url.Values{}
-	params.Add("name", searchTerm)
-	fullURL := baseURL + "?" + params.Encode()
+	// create a BeerAPI client
+	client := api.NewBeerAPIClient(s.Config.APIKey)
 
-	// create a get request
-	req, err := http.NewRequest("GET", fullURL, nil)
+	// call the SearchBeers method
+	apiResponse, err := client.SearchBeers(searchTerm)
 	if err != nil {
 		color.Red("❌ Error: Could not connect to beer database")
 		color.Yellow("🔍 Reason: %v", err)
@@ -167,31 +165,6 @@ func searchCommand(s *models.State, cmd models.Command) error {
 		color.Cyan("   • The API service might be temporarily down")
 		color.Cyan("   • Try again in a few moments")
 		color.Yellow("\n🌐 API Status: https://rapidapi.com/status")
-		return nil
-	}
-
-	// set the correct RapidAPI headers
-	req.Header.Set("x-rapidapi-key", apiKey)
-	req.Header.Set("x-rapidapi-host", "beer9.p.rapidapi.com")
-
-	// make the request
-	client := http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		color.Red("error making request", err)
-		return nil
-	}
-
-	//close the body of the response
-	defer res.Body.Close()
-
-	var apiResponse models.APIResponse // wrapper struct for large api responses
-
-	// decode the body
-	decoder := json.NewDecoder(res.Body)
-	err = decoder.Decode(&apiResponse)
-	if err != nil {
-		color.Red("Error decoding parameters", err)
 		return nil
 	}
 
@@ -251,7 +224,7 @@ func searchCommand(s *models.State, cmd models.Command) error {
 	s.SearchHistory = append(s.SearchHistory, historyEntry)
 
 	// persist search history to file
-	err = saveSearchHistory(s.Config.User, s.SearchHistory)
+	err = storage.SaveSearchHistory(s.Config.User, s.SearchHistory)
 	if err != nil {
 		color.Yellow("Warning: Could not save search history: %v\n", err)
 	}
@@ -352,70 +325,10 @@ func exitCommand(s *models.State, cmd models.Command) error {
 	return nil
 }
 
-// create a helper function that returns the favorities filename for a given user
-func getUserFavoritesFilename(username string) string {
-	// if username is empty, use "guest"
-	if username == "" {
-		username = "guest"
-	}
-	// trim spaces and convert to lowercase
-	username = strings.TrimSpace(strings.ToLower(username))
-	// replace spaces with underscores
-	safeUsername := strings.ReplaceAll(username, " ", "_")
-	// return the filename
-	return fmt.Sprintf("favorites_%s.json", safeUsername)
-}
-
 // create a title case function for beer names
 func toTitleCase(input string) string {
 	caser := cases.Title(language.English)
 	return caser.String(input)
-}
-
-// create a saveFavorites function to save favorite beers to a JSON file
-func saveFavorites(username string, favorites models.Favorites) error {
-	// get the filename for the user
-	filename := getUserFavoritesFilename(username)
-	// create or truncate the favorites file
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// encode the favorites struct to JSON and write to file
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", " ")
-	err = encoder.Encode(favorites)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// create a loadFavorites function to load favorite beers from a JSON file
-func loadFavorites(username string) (models.Favorites, error) {
-	var favorites models.Favorites
-
-	// get username
-	filename := getUserFavoritesFilename(username)
-
-	// open the favorites file
-	file, err := os.Open(filename)
-	if err != nil {
-		return favorites, err
-	}
-	defer file.Close()
-
-	// decode the JSON data into the favorites struct
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&favorites)
-	if err != nil {
-		return favorites, err
-	}
-
-	return favorites, nil
 }
 
 // create a favorite command function
@@ -436,7 +349,7 @@ func favoriteCommand(s *models.State, cmd models.Command) error {
 	beerName := toTitleCase(strings.Join(cmd.Args, " "))
 
 	// load existing favorites
-	favorites, err := loadFavorites(s.Config.User)
+	favorites, err := storage.LoadFavorites(s.Config.User)
 	if err != nil {
 		// if file not found, initialize empty favorites
 		if os.IsNotExist(err) {
@@ -487,7 +400,7 @@ func favoriteCommand(s *models.State, cmd models.Command) error {
 	}
 
 	// save updated favorites
-	err = saveFavorites(s.Config.User, favorites)
+	err = storage.SaveFavorites(s.Config.User, favorites)
 	if err != nil {
 		color.Red("Error saving favorites:", err)
 		return nil
@@ -500,7 +413,7 @@ func favoriteCommand(s *models.State, cmd models.Command) error {
 // display favorite beers command function
 func displayFavoritesCommand(s *models.State, cmd models.Command) error {
 	// load existing favorites
-	favorites, err := loadFavorites(s.Config.User)
+	favorites, err := storage.LoadFavorites(s.Config.User)
 	if err != nil {
 		color.Yellow("favorites is empty. Type 'help' to add a favorite beer", err)
 		return nil
@@ -574,7 +487,7 @@ func removeFavoriteCommand(s *models.State, cmd models.Command) error {
 	beerName := toTitleCase(strings.Join(cmd.Args, " "))
 
 	// load existing favorites
-	favorites, err := loadFavorites(s.Config.User)
+	favorites, err := storage.LoadFavorites(s.Config.User)
 	if err != nil {
 		color.Red("error loading favorites", err)
 		return nil
@@ -604,7 +517,7 @@ func removeFavoriteCommand(s *models.State, cmd models.Command) error {
 	favorites.Beers = append(favorites.Beers[:index], favorites.Beers[index+1:]...)
 
 	// save updated favorites
-	err = saveFavorites(s.Config.User, favorites)
+	err = storage.SaveFavorites(s.Config.User, favorites)
 	if err != nil {
 		color.Red("error saving favorites", err)
 	}
@@ -629,7 +542,7 @@ func clearFavoritesCommand(s *models.State, cmd models.Command) error {
 	}
 
 	// save the empty favorites to the file
-	err := saveFavorites(s.Config.User, favorites)
+	err := storage.SaveFavorites(s.Config.User, favorites)
 	if err != nil {
 		color.Red("error clearing favorites", err)
 		return nil
@@ -713,52 +626,6 @@ func randomCommand(s *models.State, cmd models.Command) error {
 	return nil
 }
 
-// create a saveSearchHistory function to persist search history to a JSON file
-func saveSearchHistory(username string, history []models.SearchHistoryEntry) error {
-	// get the filename for the user
-	filename := fmt.Sprintf("search_history_%s.json", strings.ToLower(strings.ReplaceAll(username, " ", "_")))
-	// create or truncate the search history file
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// encode the search history slice to JSON and write to file
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", " ")
-	err = encoder.Encode(history)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// create a loadSearchHistory function to load search history from a JSON file
-func loadSearchHistory(username string) ([]models.SearchHistoryEntry, error) {
-	var history []models.SearchHistoryEntry
-
-	// get username
-	filename := fmt.Sprintf("search_history_%s.json", strings.ToLower(strings.ReplaceAll(username, " ", "_")))
-
-	// open the search history file
-	file, err := os.Open(filename)
-	if err != nil {
-		return history, err
-	}
-	defer file.Close()
-
-	// decode the JSON data into the history slice
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&history)
-	if err != nil {
-		return history, err
-	}
-
-	return history, nil
-}
-
 // create a history command function to display search history
 func historyCommand(s *models.State, cmd models.Command) error {
 	// check if there is any search history
@@ -806,7 +673,7 @@ func clearHistoryCommand(s *models.State, cmd models.Command) error {
 		return nil
 	}
 	// save the empty history to the file
-	err := saveSearchHistory(s.Config.User, history)
+	err := storage.SaveSearchHistory(s.Config.User, history)
 	if err != nil {
 		color.Red("error clearing search history", err)
 		return nil
@@ -914,7 +781,7 @@ func exportFavoritesCommand(s *models.State, cmd models.Command) error {
 	}
 
 	// load existing favorites
-	favorites, err := loadFavorites(s.Config.User)
+	favorites, err := storage.LoadFavorites(s.Config.User)
 	if err != nil {
 		color.Red("error loading favorites", err)
 		color.Cyan("\n💡 Make sure you have favorite beers saved first.")
@@ -1009,7 +876,7 @@ func main() {
 	}
 
 	// load search history for the user
-	history, err := loadSearchHistory(username)
+	history, err := storage.LoadSearchHistory(username)
 	if err != nil {
 		// if file not found, initialize empty history
 		if os.IsNotExist(err) {
