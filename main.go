@@ -13,52 +13,20 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+
 	"github.com/joho/godotenv"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/jamesBoder/BeerInfoApp.git/internal/models"
 )
 
 // build command functions here
 
-// create config struct to hold app configuration
-type config struct {
-	// API key string
-	apiKey string
-	// Username string
-	User string
-}
-
-// create state struct that holds a pointer to a config
-type state struct {
-	// pointer to config struct
-	config            *config
-	lastSearchResults []Beer               // slice to hold last search results
-	searchHistory     []SearchHistoryEntry // slice to hold search history
-}
-
-// create a struct to hold search history entries
-type SearchHistoryEntry struct {
-	Term      string    // search term
-	Timestamp time.Time // timestamp of the search
-	Results   []Beer    // slice of beers returned in the search
-}
-
-// create command struct
-type command struct {
-	name string
-	args []string
-}
-
-// create a  struct to map command names to handler functions.
-type commandHandler struct {
-	// map of command names to handler functions
-	handlers map[string]func(*state, command) error
-}
-
 // create a login command functino
-func loginCommand(s *state, cmd command) error {
+func loginCommand(s *models.State, cmd models.Command) error {
 	// check if username argument is provided
-	if len(cmd.args) == 0 {
+	if len(cmd.Args) == 0 {
 		color.Red("❌ Error: Username is required")
 		color.Yellow("\n💡 Usage: login <username>")
 		color.Yellow("\n📖 Examples:")
@@ -69,23 +37,23 @@ func loginCommand(s *state, cmd command) error {
 	}
 
 	// get the username from the command arguments
-	username := cmd.args[0]
+	username := cmd.Args[0]
 	// set the username in the config
-	s.config.User = username
+	s.Config.User = username
 
 	// load search history
 	history, err := loadSearchHistory(username)
 	if err != nil {
 		// if file not found, initialize empty history
 		if os.IsNotExist(err) {
-			s.searchHistory = []SearchHistoryEntry{}
+			s.SearchHistory = []models.SearchHistoryEntry{}
 		} else {
 			// other errors
 			color.Red("error loading search history", err)
 			return nil
 		}
 	} else {
-		s.searchHistory = history
+		s.SearchHistory = history
 	}
 
 	// print a success message
@@ -94,35 +62,35 @@ func loginCommand(s *state, cmd command) error {
 }
 
 // create a logout command function
-func logoutCommand(s *state, cmd command) error {
+func logoutCommand(s *models.State, cmd models.Command) error {
 	// check if user is logged in
-	if s.config.User == "" {
+	if s.Config.User == "" {
 		color.Yellow("⚠️ No user is currently logged in.")
 		color.Yellow("\n 💡 To log in, use the command: login <username>")
 		return nil
 	}
 
 	// get the current username
-	username := s.config.User
+	username := s.Config.User
 
 	// clear the username in the config
-	s.config.User = ""
+	s.Config.User = ""
 
 	//clear last search results
-	s.lastSearchResults = []Beer{}
+	s.LastSearchResults = []models.Beer{}
 
 	// clear search history
-	s.searchHistory = []SearchHistoryEntry{}
+	s.SearchHistory = []models.SearchHistoryEntry{}
 
 	// save empty favorites for guest user
-	err := saveFavorites("guest", Favorites{Beers: []Beer{}})
+	err := saveFavorites("guest", models.Favorites{Beers: []models.Beer{}})
 	if err != nil {
 		color.Red("error saving guest favorites", err)
 		return nil
 	}
 
 	// save empty search history for guest user
-	err = saveSearchHistory("guest", []SearchHistoryEntry{})
+	err = saveSearchHistory("guest", []models.SearchHistoryEntry{})
 	if err != nil {
 		color.Red("error saving guest search history", err)
 		return nil
@@ -135,9 +103,9 @@ func logoutCommand(s *state, cmd command) error {
 }
 
 // create a search command function
-func searchCommand(s *state, cmd command) error {
+func searchCommand(s *models.State, cmd models.Command) error {
 	// base case : check if search term is provided
-	if len(cmd.args) == 0 {
+	if len(cmd.Args) == 0 {
 		color.Red("❌ Error: Search term is required")
 		color.Yellow("\n💡 Usage: search <beer name or brewery>")
 		color.Yellow("\n📖 Examples:")
@@ -149,12 +117,12 @@ func searchCommand(s *state, cmd command) error {
 	}
 
 	// get the search term from command arguments
-	var searchTerm string = cmd.args[0]
+	var searchTerm string = cmd.Args[0]
 
 	// get the API key from config
 	apiKey := ""
-	if s != nil && s.config != nil {
-		apiKey = s.config.apiKey
+	if s != nil && s.Config != nil {
+		apiKey = s.Config.APIKey
 	}
 
 	// exit if user types "quit" or "exit"
@@ -217,7 +185,7 @@ func searchCommand(s *state, cmd command) error {
 	//close the body of the response
 	defer res.Body.Close()
 
-	var apiResponse APIResponse // wrapper struct for large api responses
+	var apiResponse models.APIResponse // wrapper struct for large api responses
 
 	// decode the body
 	decoder := json.NewDecoder(res.Body)
@@ -271,19 +239,19 @@ func searchCommand(s *state, cmd command) error {
 		return nil
 	}
 
-	// save last search results to state
-	s.lastSearchResults = apiResponse.Data
+	// save last search results to models.State
+	s.LastSearchResults = apiResponse.Data
 
 	// save search history
-	historyEntry := SearchHistoryEntry{
+	historyEntry := models.SearchHistoryEntry{
 		Term:      searchTerm,
 		Timestamp: time.Now(),
 		Results:   apiResponse.Data,
 	}
-	s.searchHistory = append(s.searchHistory, historyEntry)
+	s.SearchHistory = append(s.SearchHistory, historyEntry)
 
 	// persist search history to file
-	err = saveSearchHistory(s.config.User, s.searchHistory)
+	err = saveSearchHistory(s.Config.User, s.SearchHistory)
 	if err != nil {
 		color.Yellow("Warning: Could not save search history: %v\n", err)
 	}
@@ -342,7 +310,7 @@ func searchCommand(s *state, cmd command) error {
 	case "m", "menu", "":
 		fmt.Println("Returning to main menu...")
 		// print help menu
-		helpCommand(s, command{})
+		helpCommand(s, models.Command{})
 		return nil
 	case "x", "exit", "quit":
 		color.Green("Thanks for using Beer Info App! Goodbye!")
@@ -355,7 +323,7 @@ func searchCommand(s *state, cmd command) error {
 }
 
 // create a help command function
-func helpCommand(s *state, cmd command) error {
+func helpCommand(s *models.State, cmd models.Command) error {
 	color.Magenta("\nAvailable commands:")
 	color.Cyan("---------------------------------------------------")
 	coloredText := color.New(color.FgCyan).SprintFunc()
@@ -378,29 +346,10 @@ func helpCommand(s *state, cmd command) error {
 }
 
 // create an exit command function
-func exitCommand(s *state, cmd command) error {
+func exitCommand(s *models.State, cmd models.Command) error {
 	color.Green("Exiting the Beer Info App. Goodbye!")
 	os.Exit(0)
 	return nil
-}
-
-// create a register handler function attached to commandHandler struct
-func (ch *commandHandler) registerCommand(name string, f func(*state, command) error) {
-	ch.handlers[name] = f
-
-}
-
-// create a run command function attached to commandHandler struct
-func (ch *commandHandler) runCommand(s *state, cmd command) error {
-	// check if command exists in handlers map
-	if handler, ok := ch.handlers[cmd.name]; ok {
-		// call the handler function
-		return handler(s, cmd)
-
-	}
-	color.Red("❌ Error: Unknown command '%s'", cmd.name)
-	return nil
-
 }
 
 // create a helper function that returns the favorities filename for a given user
@@ -424,7 +373,7 @@ func toTitleCase(input string) string {
 }
 
 // create a saveFavorites function to save favorite beers to a JSON file
-func saveFavorites(username string, favorites Favorites) error {
+func saveFavorites(username string, favorites models.Favorites) error {
 	// get the filename for the user
 	filename := getUserFavoritesFilename(username)
 	// create or truncate the favorites file
@@ -446,8 +395,8 @@ func saveFavorites(username string, favorites Favorites) error {
 }
 
 // create a loadFavorites function to load favorite beers from a JSON file
-func loadFavorites(username string) (Favorites, error) {
-	var favorites Favorites
+func loadFavorites(username string) (models.Favorites, error) {
+	var favorites models.Favorites
 
 	// get username
 	filename := getUserFavoritesFilename(username)
@@ -470,9 +419,9 @@ func loadFavorites(username string) (Favorites, error) {
 }
 
 // create a favorite command function
-func favoriteCommand(s *state, cmd command) error {
+func favoriteCommand(s *models.State, cmd models.Command) error {
 	// check if beer name is provided
-	if len(cmd.args) == 0 {
+	if len(cmd.Args) == 0 {
 		color.Red("❌ Error: Beer name is required")
 		color.Yellow("\n💡 Usage: favorite <beer name>")
 		color.Yellow("\n📖 Examples:")
@@ -484,14 +433,14 @@ func favoriteCommand(s *state, cmd command) error {
 	}
 
 	// get the beer name from command arguments
-	beerName := toTitleCase(strings.Join(cmd.args, " "))
+	beerName := toTitleCase(strings.Join(cmd.Args, " "))
 
 	// load existing favorites
-	favorites, err := loadFavorites(s.config.User)
+	favorites, err := loadFavorites(s.Config.User)
 	if err != nil {
 		// if file not found, initialize empty favorites
 		if os.IsNotExist(err) {
-			favorites = Favorites{Beers: []Beer{}}
+			favorites = models.Favorites{Beers: []models.Beer{}}
 		} else {
 
 			// other errors
@@ -511,11 +460,11 @@ func favoriteCommand(s *state, cmd command) error {
 	// find the beer in last search results
 
 	// initialize a pointer to hold the beer to add
-	var beerToAdd *Beer
+	var beerToAdd *models.Beer
 	found := false
 
-	if len(s.lastSearchResults) > 0 {
-		for _, beer := range s.lastSearchResults {
+	if len(s.LastSearchResults) > 0 {
+		for _, beer := range s.LastSearchResults {
 			if strings.EqualFold(beer.Name, beerName) {
 				beerToAdd = &beer
 				found = true
@@ -531,14 +480,14 @@ func favoriteCommand(s *state, cmd command) error {
 	} else {
 		// save a beer with only the name if not found in last search results
 		// create empty beer with only name
-		newBeer := Beer{Name: beerName}
+		newBeer := models.Beer{Name: beerName}
 		// append to favorites
 		favorites.Beers = append(favorites.Beers, newBeer)
 		color.Green("Beer %q added to favorites with name only\n", beerName)
 	}
 
 	// save updated favorites
-	err = saveFavorites(s.config.User, favorites)
+	err = saveFavorites(s.Config.User, favorites)
 	if err != nil {
 		color.Red("Error saving favorites:", err)
 		return nil
@@ -549,9 +498,9 @@ func favoriteCommand(s *state, cmd command) error {
 }
 
 // display favorite beers command function
-func displayFavoritesCommand(s *state, cmd command) error {
+func displayFavoritesCommand(s *models.State, cmd models.Command) error {
 	// load existing favorites
-	favorites, err := loadFavorites(s.config.User)
+	favorites, err := loadFavorites(s.Config.User)
 	if err != nil {
 		color.Yellow("favorites is empty. Type 'help' to add a favorite beer", err)
 		return nil
@@ -610,9 +559,9 @@ func displayFavoritesCommand(s *state, cmd command) error {
 }
 
 // add a remove favorite command function
-func removeFavoriteCommand(s *state, cmd command) error {
+func removeFavoriteCommand(s *models.State, cmd models.Command) error {
 	// check if beer name is provided
-	if len(cmd.args) == 0 {
+	if len(cmd.Args) == 0 {
 		color.Yellow("⚠️ beer name not provided")
 		color.Cyan("\n💡 Usage: remove <beer name>")
 		color.Yellow("\n📖 Examples:")
@@ -622,10 +571,10 @@ func removeFavoriteCommand(s *state, cmd command) error {
 	}
 
 	// get the beer name from command arguments
-	beerName := toTitleCase(strings.Join(cmd.args, " "))
+	beerName := toTitleCase(strings.Join(cmd.Args, " "))
 
 	// load existing favorites
-	favorites, err := loadFavorites(s.config.User)
+	favorites, err := loadFavorites(s.Config.User)
 	if err != nil {
 		color.Red("error loading favorites", err)
 		return nil
@@ -655,7 +604,7 @@ func removeFavoriteCommand(s *state, cmd command) error {
 	favorites.Beers = append(favorites.Beers[:index], favorites.Beers[index+1:]...)
 
 	// save updated favorites
-	err = saveFavorites(s.config.User, favorites)
+	err = saveFavorites(s.Config.User, favorites)
 	if err != nil {
 		color.Red("error saving favorites", err)
 	}
@@ -664,9 +613,9 @@ func removeFavoriteCommand(s *state, cmd command) error {
 }
 
 // create a clear favorites command that removes all favorite beers
-func clearFavoritesCommand(s *state, cmd command) error {
+func clearFavoritesCommand(s *models.State, cmd models.Command) error {
 	// create an empty favorites struct
-	favorites := Favorites{Beers: []Beer{}}
+	favorites := models.Favorites{Beers: []models.Beer{}}
 
 	// ask are you sure if you want to clear favorites list
 	color.Cyan("Are you sure you want to clear all your favorite beers? (y/n): ")
@@ -680,7 +629,7 @@ func clearFavoritesCommand(s *state, cmd command) error {
 	}
 
 	// save the empty favorites to the file
-	err := saveFavorites(s.config.User, favorites)
+	err := saveFavorites(s.Config.User, favorites)
 	if err != nil {
 		color.Red("error clearing favorites", err)
 		return nil
@@ -691,9 +640,9 @@ func clearFavoritesCommand(s *state, cmd command) error {
 }
 
 // create a randomCommand that displays a random beer from last search results
-func randomCommand(s *state, cmd command) error {
+func randomCommand(s *models.State, cmd models.Command) error {
 	// check if ther are any last search results
-	if len(s.lastSearchResults) == 0 {
+	if len(s.LastSearchResults) == 0 {
 		color.Yellow("⚠️  No last search results found. Please perform a search first.")
 		color.Cyan("\n💡 To use the random feature:")
 		color.Cyan("   1. First search for beers: search IPA")
@@ -706,10 +655,10 @@ func randomCommand(s *state, cmd command) error {
 	rand.Seed(time.Now().UnixNano())
 
 	// generate a random index
-	randomIndex := rand.Intn(len(s.lastSearchResults))
+	randomIndex := rand.Intn(len(s.LastSearchResults))
 
 	// get the random beer
-	randomBeer := s.lastSearchResults[randomIndex]
+	randomBeer := s.LastSearchResults[randomIndex]
 
 	// display the random beer information
 	color.Green("\n🍺 Random Beer from Last Search Results:\n\n")
@@ -751,9 +700,9 @@ func randomCommand(s *state, cmd command) error {
 
 	if choice == "y" || choice == "yes" {
 		// create a command to favorite the beer
-		favCmd := command{
-			name: "favorite",
-			args: []string{randomBeer.Name},
+		favCmd := models.Command{
+			Name: "favorite",
+			Args: []string{randomBeer.Name},
 		}
 		// call the favorite command
 		return favoriteCommand(s, favCmd)
@@ -765,7 +714,7 @@ func randomCommand(s *state, cmd command) error {
 }
 
 // create a saveSearchHistory function to persist search history to a JSON file
-func saveSearchHistory(username string, history []SearchHistoryEntry) error {
+func saveSearchHistory(username string, history []models.SearchHistoryEntry) error {
 	// get the filename for the user
 	filename := fmt.Sprintf("search_history_%s.json", strings.ToLower(strings.ReplaceAll(username, " ", "_")))
 	// create or truncate the search history file
@@ -787,8 +736,8 @@ func saveSearchHistory(username string, history []SearchHistoryEntry) error {
 }
 
 // create a loadSearchHistory function to load search history from a JSON file
-func loadSearchHistory(username string) ([]SearchHistoryEntry, error) {
-	var history []SearchHistoryEntry
+func loadSearchHistory(username string) ([]models.SearchHistoryEntry, error) {
+	var history []models.SearchHistoryEntry
 
 	// get username
 	filename := fmt.Sprintf("search_history_%s.json", strings.ToLower(strings.ReplaceAll(username, " ", "_")))
@@ -811,9 +760,9 @@ func loadSearchHistory(username string) ([]SearchHistoryEntry, error) {
 }
 
 // create a history command function to display search history
-func historyCommand(s *state, cmd command) error {
+func historyCommand(s *models.State, cmd models.Command) error {
 	// check if there is any search history
-	if len(s.searchHistory) == 0 {
+	if len(s.SearchHistory) == 0 {
 		color.Yellow("📭 Your search history is empty")
 		color.Cyan("\n💡 Search history will appear here after you:")
 		color.Cyan("   • Perform your first search")
@@ -824,7 +773,7 @@ func historyCommand(s *state, cmd command) error {
 
 	// display search history
 	color.Blue("\nYour Search History:")
-	for i, entry := range s.searchHistory {
+	for i, entry := range s.SearchHistory {
 		color.Yellow("\n--- Search #%d ---\n", i+1)
 		fmt.Printf("Term: %s\n", entry.Term)
 		fmt.Printf("Timestamp: %s\n", entry.Timestamp.Format(time.RFC1123))
@@ -834,12 +783,12 @@ func historyCommand(s *state, cmd command) error {
 }
 
 // add a clear history command function to clear search history
-func clearHistoryCommand(s *state, cmd command) error {
+func clearHistoryCommand(s *models.State, cmd models.Command) error {
 	// CREATE an empty history slice
-	history := []SearchHistoryEntry{}
+	history := []models.SearchHistoryEntry{}
 
 	// check if there is any history to clear
-	if len(s.searchHistory) == 0 {
+	if len(s.SearchHistory) == 0 {
 		color.Yellow("⚠️ No search history to clear.")
 		color.Cyan("\n💡 Your search history is already empty.")
 		color.Cyan("   Perform searches to build your history.")
@@ -857,14 +806,14 @@ func clearHistoryCommand(s *state, cmd command) error {
 		return nil
 	}
 	// save the empty history to the file
-	err := saveSearchHistory(s.config.User, history)
+	err := saveSearchHistory(s.Config.User, history)
 	if err != nil {
 		color.Red("error clearing search history", err)
 		return nil
 	}
 
 	// clear in-memory history
-	s.searchHistory = []SearchHistoryEntry{}
+	s.SearchHistory = []models.SearchHistoryEntry{}
 
 	color.Green("All search history has been cleared.")
 	return nil
@@ -873,7 +822,7 @@ func clearHistoryCommand(s *state, cmd command) error {
 // ---------------- Print Helper Functions ------------------ //
 
 // export beers to JSON function
-func exportBeersToJSON(beers []Beer, filename string) error {
+func exportBeersToJSON(beers []models.Beer, filename string) error {
 	// create or truncate the output file
 	file, err := os.Create(filename)
 	if err != nil {
@@ -896,7 +845,7 @@ func exportBeersToJSON(beers []Beer, filename string) error {
 }
 
 // export beers to CSV function
-func exportBeersToCSV(beers []Beer, filename string) error {
+func exportBeersToCSV(beers []models.Beer, filename string) error {
 	// create or truncate the output file
 	file, err := os.Create(filename)
 	if err != nil {
@@ -943,9 +892,9 @@ func exportBeersToCSV(beers []Beer, filename string) error {
 }
 
 // createa a export favorites command function
-func exportFavoritesCommand(s *state, cmd command) error {
+func exportFavoritesCommand(s *models.State, cmd models.Command) error {
 	// check if format is provided
-	if len(cmd.args) == 0 {
+	if len(cmd.Args) == 0 {
 		color.Red("❌ Error: Format is required")
 		color.Yellow("\n💡 Usage: export favorites <format>")
 		color.Yellow("\n📖 Examples:")
@@ -955,7 +904,7 @@ func exportFavoritesCommand(s *state, cmd command) error {
 	}
 
 	// get the format from the command arguments
-	format := strings.ToLower(strings.TrimSpace(cmd.args[0]))
+	format := strings.ToLower(strings.TrimSpace(cmd.Args[0]))
 	// check file extension
 
 	if format != "json" && format != "csv" {
@@ -965,7 +914,7 @@ func exportFavoritesCommand(s *state, cmd command) error {
 	}
 
 	// load existing favorites
-	favorites, err := loadFavorites(s.config.User)
+	favorites, err := loadFavorites(s.Config.User)
 	if err != nil {
 		color.Red("error loading favorites", err)
 		color.Cyan("\n💡 Make sure you have favorite beers saved first.")
@@ -981,7 +930,7 @@ func exportFavoritesCommand(s *state, cmd command) error {
 
 	// generate filename with timestamp
 	timestamp := time.Now().Format("20060102_150405")
-	safeUsername := strings.ToLower(strings.ReplaceAll(s.config.User, " ", "_"))
+	safeUsername := strings.ToLower(strings.ReplaceAll(s.Config.User, " ", "_"))
 	outputFilename := fmt.Sprintf("favorites_%s_%s.%s", safeUsername, timestamp, format)
 
 	// call appropriate export function based on format
@@ -1003,37 +952,6 @@ func exportFavoritesCommand(s *state, cmd command) error {
 	color.Cyan("   • Share it with friends")
 
 	return nil
-}
-
-// ------------------ Structs for API Response ------------------ //
-
-// API Response wrapper structure
-type APIResponse struct {
-	Code  int    `json:"code"`  // status code goes into apiResponse.Code
-	Error bool   `json:"error"` // error field goes inot apiResponse.Code
-	Data  []Beer `json:"data"`  // data array goes into apiResponse.Data which is a slice of beer structs
-}
-
-// Beer struct matching the actual API response
-type Beer struct {
-	Sku           string `json:"sku"`
-	Name          string `json:"name"`
-	Brewery       string `json:"brewery"`
-	Description   string `json:"description"`
-	Region        string `json:"region"`
-	Country       string `json:"country"`
-	Abv           string `json:"abv"`
-	Ibu           string `json:"ibu"`
-	Category      string `json:"category"`
-	Rating        string `json:"rating"`
-	FoodPairing   string `json:"food_pairing"`
-	SubCategory_1 string `json:"sub_category_1"`
-	SubCategory_2 string `json:"sub_category_2"`
-}
-
-// create a favorites struct to hold favorite beers
-type Favorites struct {
-	Beers []Beer `json:"beers"`
 }
 
 func main() {
@@ -1085,8 +1003,8 @@ func main() {
 	}
 
 	// create a config instance
-	cfg := &config{
-		apiKey: apiKey,
+	cfg := &models.Config{
+		APIKey: apiKey,
 		User:   username,
 	}
 
@@ -1095,39 +1013,39 @@ func main() {
 	if err != nil {
 		// if file not found, initialize empty history
 		if os.IsNotExist(err) {
-			history = []SearchHistoryEntry{}
+			history = []models.SearchHistoryEntry{}
 		} else {
 			color.Yellow("Warning: Could not load search history: %v\n", err)
-			history = []SearchHistoryEntry{}
+			history = []models.SearchHistoryEntry{}
 		}
 	}
 
-	// create a state instance
-	s := &state{
-		config:        cfg,
-		searchHistory: history,
+	// create a models.State instance
+	s := &models.State{
+		Config:        cfg,
+		SearchHistory: history,
 	}
 
 	// create a commandHandler instance
-	ch := &commandHandler{
-		handlers: make(map[string]func(*state, command) error),
+	ch := &models.CommandHandler{
+		Handlers: make(map[string]func(*models.State, models.Command) error),
 	}
 
 	// register commands
-	ch.registerCommand("login", loginCommand)
-	ch.registerCommand("logout", logoutCommand)
-	ch.registerCommand("search", searchCommand)
-	ch.registerCommand("help", helpCommand)
-	ch.registerCommand("exit", exitCommand)
-	ch.registerCommand("quit", exitCommand)
-	ch.registerCommand("favorite", favoriteCommand)
-	ch.registerCommand("favorites", displayFavoritesCommand)
-	ch.registerCommand("remove", removeFavoriteCommand)
-	ch.registerCommand("clear favs", clearFavoritesCommand)
-	ch.registerCommand("random", randomCommand)
-	ch.registerCommand("history", historyCommand)
-	ch.registerCommand("clear history", clearHistoryCommand)
-	ch.registerCommand("export favs", exportFavoritesCommand)
+	ch.RegisterCommand("logout", logoutCommand)
+	ch.RegisterCommand("login", loginCommand)
+	ch.RegisterCommand("search", searchCommand)
+	ch.RegisterCommand("help", helpCommand)
+	ch.RegisterCommand("exit", exitCommand)
+	ch.RegisterCommand("quit", exitCommand)
+	ch.RegisterCommand("favorite", favoriteCommand)
+	ch.RegisterCommand("favorites", displayFavoritesCommand)
+	ch.RegisterCommand("remove", removeFavoriteCommand)
+	ch.RegisterCommand("clear favs", clearFavoritesCommand)
+	ch.RegisterCommand("random", randomCommand)
+	ch.RegisterCommand("history", historyCommand)
+	ch.RegisterCommand("clear history", clearHistoryCommand)
+	ch.RegisterCommand("export favs", exportFavoritesCommand)
 
 	// CLI interaction section
 
@@ -1135,8 +1053,8 @@ func main() {
 	for {
 
 		// display current user
-		if s.config.User != "" {
-			color.Magenta("\nCurrent User: %s\n", toTitleCase(s.config.User))
+		if s.Config.User != "" {
+			color.Magenta("\nCurrent User: %s\n", toTitleCase(s.Config.User))
 		} else {
 			color.Magenta("\nCurrent User: guest")
 		}
@@ -1156,24 +1074,24 @@ func main() {
 
 		// parse input into command struct
 		// handle multi-word commands like "clear favs" and "clear history"
-		var cmd command
+		var cmd models.Command
 		if len(parts) >= 2 && parts[0] == "clear" && (parts[1] == "favs" || parts[1] == "history") || len(parts) >= 2 && parts[0] == "export" && parts[1] == "favorites" {
 
 			// multi-word command
-			cmd = command{
-				name: parts[0] + " " + parts[1], // combine first two parts
-				args: parts[2:],                 // remaining parts are arguments
+			cmd = models.Command{
+				Name: parts[0] + " " + parts[1], // combine first two parts
+				Args: parts[2:],                 // remaining parts are arguments
 			}
 		} else {
 			// single-word command
-			cmd = command{
-				name: parts[0],  // first part is command name
-				args: parts[1:], // remaining parts are arguments
+			cmd = models.Command{
+				Name: parts[0],  // first part is command name
+				Args: parts[1:], // remaining parts are arguments
 			}
 		}
 
 		// run the command
-		err := ch.runCommand(s, cmd)
+		err := ch.RunCommand(s, cmd)
 		if err != nil {
 			color.Red("Error executing command:", err)
 			color.Blue("Type 'help' to see a full list of available commands.")
