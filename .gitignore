@@ -48,3 +48,12 @@ go.work.sum
 
 # .csv file
 *.csv
+
+# binary output folder
+**/bin/
+
+# all bin files
+*.bin
+
+# exact file
+BeerInfoApp.bin

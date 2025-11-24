@@ -9,16 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
-
 	"github.com/joho/godotenv"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 
 	"github.com/jamesBoder/BeerInfoApp.git/internal/api"
 	"github.com/jamesBoder/BeerInfoApp.git/internal/export"
 	"github.com/jamesBoder/BeerInfoApp.git/internal/models"
 	"github.com/jamesBoder/BeerInfoApp.git/internal/storage"
+	"github.com/jamesBoder/BeerInfoApp.git/internal/ui"
 )
 
 // build command functions here
@@ -27,12 +24,12 @@ import (
 func loginCommand(s *models.State, cmd models.Command) error {
 	// check if username argument is provided
 	if len(cmd.Args) == 0 {
-		color.Red("❌ Error: Username is required")
-		color.Yellow("\n💡 Usage: login <username>")
-		color.Yellow("\n📖 Examples:")
-		color.Cyan("   login james")
-		color.Cyan("   login sarah")
-		color.Yellow("\n💭 Tip: Press Enter at startup to continue as guest")
+		fmt.Println(ui.Error("Error: Username is required"))
+		fmt.Println(ui.Tip("\nUsage: login <username>"))
+		fmt.Println(ui.Example("\nExamples:"))
+		fmt.Println(ui.Info("   login james"))
+		fmt.Println(ui.Info("   login sarah"))
+		fmt.Println(ui.Tip("\nTip: Press Enter at startup to continue as guest"))
 		return nil
 	}
 
@@ -49,7 +46,7 @@ func loginCommand(s *models.State, cmd models.Command) error {
 			s.SearchHistory = []models.SearchHistoryEntry{}
 		} else {
 			// other errors
-			color.Red("error loading search history", err)
+			fmt.Println(ui.Error("error loading search history", err))
 			return nil
 		}
 	} else {
@@ -57,7 +54,7 @@ func loginCommand(s *models.State, cmd models.Command) error {
 	}
 
 	// print a success message
-	color.Green("User %s logged in successfully\n", username)
+	fmt.Println(ui.Success("User %s logged in successfully\n", username))
 	return nil
 }
 
@@ -65,8 +62,8 @@ func loginCommand(s *models.State, cmd models.Command) error {
 func logoutCommand(s *models.State, cmd models.Command) error {
 	// check if user is logged in
 	if s.Config.User == "" {
-		color.Yellow("⚠️ No user is currently logged in.")
-		color.Yellow("\n 💡 To log in, use the command: login <username>")
+		fmt.Println(ui.Warning("No user is currently logged in."))
+		fmt.Println(ui.Tip("\n To log in, use the command: login <username>"))
 		return nil
 	}
 
@@ -85,20 +82,20 @@ func logoutCommand(s *models.State, cmd models.Command) error {
 	// save empty favorites for guest user
 	err := storage.SaveFavorites("guest", models.Favorites{Beers: []models.Beer{}})
 	if err != nil {
-		color.Red("error saving guest favorites", err)
+		fmt.Println(ui.Error("error saving guest favorites", err))
 		return nil
 	}
 
 	// save empty search history for guest user
 	err = storage.SaveSearchHistory("guest", []models.SearchHistoryEntry{})
 	if err != nil {
-		color.Red("error saving guest search history", err)
+		fmt.Println(ui.Error("error saving guest search history", err))
 		return nil
 	}
 
 	// print a success message
-	color.Green("User %s logged out successfully\n", username)
-	color.Green("Your favorite beers are saved and will be available when you log back in.")
+	fmt.Println(ui.Success("User %s logged out successfully\n", username))
+	fmt.Println(ui.Success("Your favorite beers are saved and will be available when you log back in."))
 	return nil
 }
 
@@ -106,13 +103,13 @@ func logoutCommand(s *models.State, cmd models.Command) error {
 func searchCommand(s *models.State, cmd models.Command) error {
 	// base case : check if search term is provided
 	if len(cmd.Args) == 0 {
-		color.Red("❌ Error: Search term is required")
-		color.Yellow("\n💡 Usage: search <beer name or brewery>")
-		color.Yellow("\n📖 Examples:")
-		color.Cyan("   search IPA")
-		color.Cyan("   search Sixpoint")
-		color.Cyan("   search \"Hazy IPA\"")
-		color.Yellow("\n💭 Tip: Use quotes for multi-word searches")
+		fmt.Println(ui.Error("Error: Search term is required"))
+		fmt.Println(ui.Tip("\nUsage: search <beer name or brewery>"))
+		fmt.Println(ui.Example("\nExamples:"))
+		fmt.Println(ui.Info("   search IPA"))
+		fmt.Println(ui.Info("   search Sixpoint"))
+		fmt.Println(ui.Info("   search \"Hazy IPA\""))
+		fmt.Println(ui.Tip("\nTip: Use quotes for multi-word searches"))
 		return nil
 	}
 
@@ -121,13 +118,13 @@ func searchCommand(s *models.State, cmd models.Command) error {
 
 	// exit if user types "quit" or "exit"
 	if searchTerm == "quit" || searchTerm == "exit" {
-		color.Green("Thanks for using Beer Info App! Goodbye!")
+		ui.ShowGoodbyeMessage()
 		return nil
 	}
 
 	// check if beer name is empty
 	if searchTerm == "" {
-		fmt.Println("Please enter a valid beer name.")
+		fmt.Print(ui.Prompt("Please enter a valid beer name."))
 		return nil
 	}
 
@@ -139,58 +136,58 @@ func searchCommand(s *models.State, cmd models.Command) error {
 	// call the SearchBeers method
 	apiResponse, err := client.SearchBeers(searchTerm)
 	if err != nil {
-		color.Red("❌ Error: Could not connect to beer database")
-		color.Yellow("🔍 Reason: %v", err)
-		color.Cyan("\n💡 Possible solutions:")
-		color.Cyan("   • Check your internet connection")
-		color.Cyan("   • Verify your API key is still valid")
-		color.Cyan("   • The API service might be temporarily down")
-		color.Cyan("   • Try again in a few moments")
-		color.Yellow("\n🌐 API Status: https://rapidapi.com/status")
+		fmt.Println(ui.Error("Error: Could not connect to beer database"))
+		fmt.Println(ui.Info("Reason: %v", err))
+		fmt.Println(ui.Info("\nPossible solutions:"))
+		fmt.Println(ui.Info("   • Check your internet connection"))
+		fmt.Println(ui.Info("   • Verify your API key is still valid"))
+		fmt.Println(ui.Info("   • The API service might be temporarily down"))
+		fmt.Println(ui.Info("   • Try again in a few moments"))
+		fmt.Println(ui.Info("\n🌐 API Status: https://rapidapi.com/status"))
 		return nil
 	}
 
 	// Check if the API returned an error
 	if apiResponse.Error {
-		color.Red("❌ Error: Beer database returned an error")
-		color.Yellow("🔢 Error code: %d", apiResponse.Code)
+		fmt.Println(ui.Error("Error: Beer database returned an error"))
+		fmt.Println(ui.Info("🔢 Error code: %d", apiResponse.Code))
 
 		// switch on error code
 
 		switch apiResponse.Code {
 		case 400:
-			color.Red("❌ Error: Bad request")
-			color.Yellow("🔍 Reason: Invalid search parameters")
+			fmt.Println(ui.Error("Error: Bad request"))
+			fmt.Println(ui.Info("Reason: Invalid search parameters"))
 		case 401:
-			color.Red("❌ Error: Unauthorized")
-			color.Yellow("🔍 Reason: Invalid API key or access denied")
+			fmt.Println(ui.Error("Error: Unauthorized"))
+			fmt.Println(ui.Info("Reason: Invalid API key or access denied"))
 		case 403:
-			color.Red("❌ Error: Forbidden")
-			color.Yellow("🔍 Reason: Access to the resource is forbidden")
+			fmt.Println(ui.Error("Error: Forbidden"))
+			fmt.Println(ui.Info("Reason: Access to the resource is forbidden"))
 		case 404:
-			color.Red("❌ Error: Not found")
-			color.Yellow("🔍 Reason: The requested resource was not found")
+			fmt.Println(ui.Error("Error: Not found"))
+			fmt.Println(ui.Info("Reason: The requested resource was not found"))
 		case 500:
-			color.Red("❌ Error: Internal server error")
-			color.Yellow("🔍 Reason: The server encountered an error processing your request")
-			color.Cyan("   • This is not your fault")
-			color.Cyan("   • Try again in a few minutes")
+			fmt.Println(ui.Error("Error: Internal server error"))
+			fmt.Println(ui.Info("Reason: The server encountered an error processing your request"))
+			fmt.Println(ui.Tip("   • This is not your fault"))
+			fmt.Println(ui.Tip("   • Try again in a few minutes"))
 		default:
-			color.Red("❌ Error: Unknown error occurred (code %d)", apiResponse.Code)
+			fmt.Println(ui.Error("Error: Unknown error occurred (code %d)", apiResponse.Code))
 		}
 
 		return nil
 	}
 
 	if len(apiResponse.Data) == 0 {
-		color.Yellow("🔍 No beers found matching '%s'", searchTerm)
-		color.Cyan("\n💡 Suggestions:")
-		color.Cyan("   • Try a broader search term")
-		color.Cyan("   • Check your spelling")
-		color.Cyan("   • Try searching by brewery name")
-		color.Yellow("\n📖 Examples:")
-		color.Cyan("   search IPA")
-		color.Cyan("   search Sixpoint")
+		fmt.Println(ui.Info("No beers found matching '%s'", searchTerm))
+		fmt.Println(ui.Tip("\nSuggestions:"))
+		fmt.Println(ui.Tip("   • Try a broader search term"))
+		fmt.Println(ui.Tip("   • Check your spelling"))
+		fmt.Println(ui.Tip("   • Try searching by brewery name"))
+		fmt.Println(ui.Example("\nExamples:"))
+		fmt.Println(ui.Info("   search IPA"))
+		fmt.Println(ui.Info("   search Sixpoint"))
 		return nil
 	}
 
@@ -208,52 +205,22 @@ func searchCommand(s *models.State, cmd models.Command) error {
 	// persist search history to file
 	err = storage.SaveSearchHistory(s.Config.User, s.SearchHistory)
 	if err != nil {
-		color.Yellow("Warning: Could not save search history: %v\n", err)
+		fmt.Println(ui.Warning("Warning: Could not save search history: %v\n", err))
 	}
 
 	// Print the decoded beer information
-	color.Green("\n🍺 Found %d beers:\n\n", len(apiResponse.Data))
+	fmt.Println(ui.Header("\nFound %d beers:\n\n", len(apiResponse.Data)))
 	for i, beer := range apiResponse.Data {
-		// create bold yellow
-		y := color.New(color.FgYellow, color.Bold)
-		y.Printf("--- Beer #%d ---\n", i+1)
-		fmt.Printf("Name: %s\n", beer.Name)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Brewery: %s\n", beer.Brewery)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("SKU: %s\n", beer.Sku)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("ABV: %s\n", beer.Abv)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("IBU: %s\n", beer.Ibu)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Category: %s\n", beer.Category)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Subcategory_1: %s\n", beer.SubCategory_1)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Subcategory_2: %s\n", beer.SubCategory_2)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Region: %s\n", beer.Region)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Country: %s\n", beer.Country)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Rating: %s\n", beer.Rating)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Food Pairing: %s\n", beer.FoodPairing)
-		color.Cyan("---------------------------------------------------")
-		fmt.Printf("Description: %s\n", beer.Description)
-		color.Cyan("---------------------------------------------------")
-		fmt.Println()
+		fmt.Println(ui.FormatBeer(beer, i+1))
 	}
 
 	// Ask user what to do next
 
-	color.Cyan("\nOptions:")
-	color.Yellow("  [s] Search again")
-	color.Blue("  [m] Main menu")
-	color.Red("  [x] Exit")
-	color.White("Your choice: ")
-
+	fmt.Println(ui.Header("\nOptions:"))
+	fmt.Println(ui.Info("  [s] Search again"))
+	fmt.Println(ui.Info("  [m] Main menu"))
+	fmt.Println(ui.Info("  [x] Exit"))
+	fmt.Print(ui.Prompt("Your choice: "))
 	var choice string
 	fmt.Scanln(&choice)
 	choice = strings.ToLower(strings.TrimSpace(choice))
@@ -268,8 +235,8 @@ func searchCommand(s *models.State, cmd models.Command) error {
 		helpCommand(s, models.Command{})
 		return nil
 	case "x", "exit", "quit":
-		color.Green("Thanks for using Beer Info App! Goodbye!")
-		os.Exit(0)
+		// exit the app
+		ui.ShowGoodbyeMessage()
 	default:
 		fmt.Println("Returning to main menu...")
 		return nil
@@ -279,56 +246,34 @@ func searchCommand(s *models.State, cmd models.Command) error {
 
 // create a help command function
 func helpCommand(s *models.State, cmd models.Command) error {
-	color.Magenta("\nAvailable commands:")
-	color.Cyan("---------------------------------------------------")
-	coloredText := color.New(color.FgCyan).SprintFunc()
-	fmt.Println(coloredText("  Command                   Description"))
-	fmt.Println(coloredText("  -------------             -----------"))
-	fmt.Println("  login <username>   - Log in with the specified username")
-	fmt.Println("  logout             - Log out of the current session")
-	fmt.Println("  search <beername>  - Search for a specific beer")
-	fmt.Println("  random             - Display a random beer from last search results")
-	fmt.Println("  favorite <beername> - Add a beer to your favorites")
-	fmt.Println("  favorites          - Display your favorite beers")
-	fmt.Println("  remove <beername>  - Remove a beer from your favorites")
-	fmt.Println("  clear favs         - Clear all favorite beers")
-	fmt.Println("  history            - Display your search history")
-	fmt.Println("  clear history      - Clear your search history")
-	fmt.Println("  export favs <format> - Export your favorites (json/csv/txt)")
-	fmt.Println("  help               - Show this help message")
-	fmt.Println("  exit, quit         - Exit the application")
+	// use FormatHelpMenu to display help menu
+	fmt.Println(ui.FormatHelpMenu())
 	return nil
 }
 
 // create an exit command function
 func exitCommand(s *models.State, cmd models.Command) error {
-	color.Green("Exiting the Beer Info App. Goodbye!")
-	os.Exit(0)
-	return nil
-}
+	ui.ShowGoodbyeMessage()
 
-// create a title case function for beer names
-func toTitleCase(input string) string {
-	caser := cases.Title(language.English)
-	return caser.String(input)
+	return nil
 }
 
 // create a favorite command function
 func favoriteCommand(s *models.State, cmd models.Command) error {
 	// check if beer name is provided
 	if len(cmd.Args) == 0 {
-		color.Red("❌ Error: Beer name is required")
-		color.Yellow("\n💡 Usage: favorite <beer name>")
-		color.Yellow("\n📖 Examples:")
-		color.Cyan("   favorite Sixpoint Resin")
-		color.Cyan("   favorite \"Hazy IPA\"")
-		color.Yellow("\n💭 Tip: The beer should be from your last search results")
-		color.Cyan("   Or type 'search <name>' first to find a beer")
+		fmt.Println(ui.Error("Error: Beer name is required"))
+		fmt.Println(ui.Tip("\nUsage: favorite <beer name>"))
+		fmt.Println(ui.Example("\nExamples:"))
+		fmt.Println(ui.Info("   favorite Sixpoint Resin"))
+		fmt.Println(ui.Info("   favorite \"Hazy IPA\""))
+		fmt.Println(ui.Tip("\nTip: The beer should be from your last search results"))
+		fmt.Println(ui.Info("   Or type 'search <name>' first to find a beer"))
 		return nil
 	}
 
 	// get the beer name from command arguments
-	beerName := toTitleCase(strings.Join(cmd.Args, " "))
+	beerName := ui.ToTitleCase(strings.Join(cmd.Args, " "))
 
 	// load existing favorites
 	favorites, err := storage.LoadFavorites(s.Config.User)
@@ -339,7 +284,7 @@ func favoriteCommand(s *models.State, cmd models.Command) error {
 		} else {
 
 			// other errors
-			color.Red("Error loading favorites:", err)
+			fmt.Println(ui.Error("Error loading favorites:", err))
 			return nil
 		}
 	}
@@ -347,7 +292,7 @@ func favoriteCommand(s *models.State, cmd models.Command) error {
 	// check if beer is already in favorites
 	for _, beer := range favorites.Beers {
 		if strings.EqualFold(beer.Name, beerName) {
-			color.Yellow("Beer %q is already in your favorites.\n", beerName)
+			fmt.Println(ui.Warning("Beer %q is already in your favorites.\n", beerName))
 			return nil
 		}
 	}
@@ -371,24 +316,24 @@ func favoriteCommand(s *models.State, cmd models.Command) error {
 	if found {
 		// save the beer to favorites
 		favorites.Beers = append(favorites.Beers, *beerToAdd)
-		color.Green("Beer %q added to favorites with all details\n", beerName)
+		fmt.Println(ui.Success("Beer %q added to favorites with all details\n", beerName))
 	} else {
 		// save a beer with only the name if not found in last search results
 		// create empty beer with only name
 		newBeer := models.Beer{Name: beerName}
 		// append to favorites
 		favorites.Beers = append(favorites.Beers, newBeer)
-		color.Green("Beer %q added to favorites with name only\n", beerName)
+		fmt.Println(ui.Success("Beer %q added to favorites with name only\n", beerName))
 	}
 
 	// save updated favorites
 	err = storage.SaveFavorites(s.Config.User, favorites)
 	if err != nil {
-		color.Red("Error saving favorites:", err)
+		fmt.Println(ui.Error("Error saving favorites:", err))
 		return nil
 	}
 
-	color.Yellow("Beer %q added to favorites!\n", beerName)
+	fmt.Println(ui.Success("Beer %q added to favorites!\n", beerName))
 	return nil
 }
 
@@ -397,57 +342,25 @@ func displayFavoritesCommand(s *models.State, cmd models.Command) error {
 	// load existing favorites
 	favorites, err := storage.LoadFavorites(s.Config.User)
 	if err != nil {
-		color.Yellow("favorites is empty. Type 'help' to add a favorite beer", err)
+		fmt.Println(ui.Warning("favorites is empty. Type 'help' to add a favorite beer", err))
 		return nil
 	}
 
 	// check if there are any favorites
 	if err != nil || len(favorites.Beers) == 0 {
-		color.Yellow("📭 You don't have any favorite beers yet")
-		color.Cyan("\n💡 How to add favorites:")
-		color.Cyan("   1. Search for a beer: search IPA")
-		color.Cyan("   2. Add to favorites: favorite <beer name>")
-		color.Yellow("\n📖 Or type 'help' to see all commands")
+		fmt.Println(ui.Warning("You don't have any favorite beers yet"))
+		fmt.Println(ui.Tip("\nHow to add favorites:"))
+		fmt.Println(ui.Info("   1. Search for a beer: search IPA"))
+		fmt.Println(ui.Info("   2. Add to favorites: favorite <beer name>"))
+		fmt.Println(ui.Tip("\nOr type 'help' to see all commands"))
 		return nil
 	}
 
 	// display favorite beers
-	color.Blue("\nYour Favorite Beers:")
+	fmt.Println(ui.Header("\nYour Favorite Beers:"))
 	// iterate over favorite beers and print their names
 	for i, beer := range favorites.Beers {
-		d := color.New(color.FgCyan, color.Bold)
-		color.Yellow("\n--- Beer #%d ---\n", i+1)
-		d.Printf("Name: %s\n", beer.Name)
-
-		// Only show fields if they exist
-		if beer.Brewery != "" {
-			fmt.Printf("Brewery: %s\n", beer.Brewery)
-		}
-		if beer.Abv != "" {
-			d.Printf("ABV: %s\n", beer.Abv)
-		}
-		if beer.Ibu != "" {
-			fmt.Printf("IBU: %s\n", beer.Ibu)
-		}
-		if beer.Category != "" {
-			d.Printf("Category: %s\n", beer.Category)
-		}
-		if beer.SubCategory_1 != "" {
-			fmt.Printf("Subcategory 1: %s\n", beer.SubCategory_1)
-		}
-		if beer.SubCategory_2 != "" {
-			d.Printf("Subcategory 2: %s\n", beer.SubCategory_2)
-		}
-		if beer.Region != "" {
-			fmt.Printf("Region: %s\n", beer.Region)
-		}
-		if beer.Country != "" {
-			d.Printf("Country: %s\n", beer.Country)
-		}
-		if beer.Description != "" {
-			fmt.Printf("Description: %s\n", beer.Description)
-		}
-		fmt.Println()
+		fmt.Println(ui.FormatBeerSummary(beer, i+1))
 	}
 
 	return nil
@@ -457,21 +370,21 @@ func displayFavoritesCommand(s *models.State, cmd models.Command) error {
 func removeFavoriteCommand(s *models.State, cmd models.Command) error {
 	// check if beer name is provided
 	if len(cmd.Args) == 0 {
-		color.Yellow("⚠️ beer name not provided")
-		color.Cyan("\n💡 Usage: remove <beer name>")
-		color.Yellow("\n📖 Examples:")
-		color.Cyan("   remove Sixpoint Resin")
-		color.Cyan("   remove \"Hazy IPA\"")
+		fmt.Println(ui.Warning("beer name not provided"))
+		fmt.Println(ui.Tip("\nUsage: remove <beer name>"))
+		fmt.Println(ui.Example("\nExamples:"))
+		fmt.Println(ui.Info("   remove Sixpoint Resin"))
+		fmt.Println(ui.Info("   remove \"Hazy IPA\""))
 		return nil
 	}
 
 	// get the beer name from command arguments
-	beerName := toTitleCase(strings.Join(cmd.Args, " "))
+	beerName := ui.ToTitleCase(strings.Join(cmd.Args, " "))
 
 	// load existing favorites
 	favorites, err := storage.LoadFavorites(s.Config.User)
 	if err != nil {
-		color.Red("error loading favorites", err)
+		fmt.Println(ui.Error("error loading favorites", err))
 		return nil
 	}
 
@@ -486,12 +399,12 @@ func removeFavoriteCommand(s *models.State, cmd models.Command) error {
 	}
 
 	if index == -1 {
-		color.Yellow("⚠️  Beer '%s' is not in your favorites", beerName)
-		color.Cyan("\n💡 Possible reasons:")
-		color.Cyan("   • The beer name might be spelled differently")
-		color.Cyan("   • It might have already been removed")
-		color.Yellow("\n📋 View your current favorites:")
-		color.Cyan("   favorites")
+		fmt.Println(ui.Warning(" Beer '%s' is not in your favorites", beerName))
+		fmt.Println(ui.Tip("\nPossible reasons:"))
+		fmt.Println(ui.Info("   • The beer name might be spelled differently"))
+		fmt.Println(ui.Info("   • It might have already been removed"))
+		fmt.Println(ui.Tip("\nView your current favorites:"))
+		fmt.Println(ui.Info("   favorites"))
 		return nil
 	}
 
@@ -501,9 +414,10 @@ func removeFavoriteCommand(s *models.State, cmd models.Command) error {
 	// save updated favorites
 	err = storage.SaveFavorites(s.Config.User, favorites)
 	if err != nil {
-		color.Red("error saving favorites", err)
+		fmt.Println(ui.Error("error saving favorites", err))
+		return nil
 	}
-	color.Green("Beer %q removed from favorites!\n", beerName)
+	fmt.Println(ui.Success("Beer %q removed from favorites!\n", beerName))
 	return nil
 }
 
@@ -513,24 +427,24 @@ func clearFavoritesCommand(s *models.State, cmd models.Command) error {
 	favorites := models.Favorites{Beers: []models.Beer{}}
 
 	// ask are you sure if you want to clear favorites list
-	color.Cyan("Are you sure you want to clear all your favorite beers? (y/n): ")
+	fmt.Print(ui.Prompt("Are you sure you want to clear all your favorite beers? (y/n): "))
 	var choice string
 	fmt.Scanln(&choice)
 	choice = strings.ToLower(strings.TrimSpace(choice))
 
 	if choice != "y" && choice != "yes" {
-		color.Cyan("Favorites not cleared.")
+		fmt.Println(ui.Info("Favorites not cleared."))
 		return nil
 	}
 
 	// save the empty favorites to the file
 	err := storage.SaveFavorites(s.Config.User, favorites)
 	if err != nil {
-		color.Red("error clearing favorites", err)
+		fmt.Println(ui.Error("error clearing favorites", err))
 		return nil
 	}
 
-	color.Green("All favorite beers have been cleared.")
+	fmt.Println(ui.Success("All favorite beers have been cleared."))
 	return nil
 }
 
@@ -538,11 +452,11 @@ func clearFavoritesCommand(s *models.State, cmd models.Command) error {
 func randomCommand(s *models.State, cmd models.Command) error {
 	// check if ther are any last search results
 	if len(s.LastSearchResults) == 0 {
-		color.Yellow("⚠️  No last search results found. Please perform a search first.")
-		color.Cyan("\n💡 To use the random feature:")
-		color.Cyan("   1. First search for beers: search IPA")
-		color.Cyan("   2. Then get a random suggestion: random")
-		color.Yellow("\n💭 Tip: The random command picks from your last search")
+		fmt.Println(ui.Warning(" No last search results found. Please perform a search first."))
+		fmt.Println(ui.Tip("\nTo use the random feature:"))
+		fmt.Println(ui.Info("   1. First search for beers: search IPA"))
+		fmt.Println(ui.Info("   2. Then get a random suggestion: random"))
+		fmt.Println(ui.Tip("\nTip: The random command picks from your last search"))
 		return nil
 	}
 
@@ -556,39 +470,13 @@ func randomCommand(s *models.State, cmd models.Command) error {
 	randomBeer := s.LastSearchResults[randomIndex]
 
 	// display the random beer information
-	color.Green("\n🍺 Random Beer from Last Search Results:\n\n")
-	y := color.New(color.FgYellow, color.Bold)
-	y.Printf("--- Beer ---\n")
-	fmt.Printf("Name: %s\n", randomBeer.Name)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Brewery: %s\n", randomBeer.Brewery)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("SKU: %s\n", randomBeer.Sku)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("ABV: %s\n", randomBeer.Abv)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("IBU: %s\n", randomBeer.Ibu)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Category: %s\n", randomBeer.Category)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Subcategory_1: %s\n", randomBeer.SubCategory_1)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Subcategory_2: %s\n", randomBeer.SubCategory_2)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Region: %s\n", randomBeer.Region)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Country: %s\n", randomBeer.Country)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Rating: %s\n", randomBeer.Rating)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Food Pairing: %s\n", randomBeer.FoodPairing)
-	color.Cyan("---------------------------------------------------")
-	fmt.Printf("Description: %s\n", randomBeer.Description)
-	color.Cyan("---------------------------------------------------")
-	fmt.Println()
+	fmt.Println(ui.Header("\nRandom Beer from Last Search Results:\n\n"))
+
+	// add Formatted beer display
+	fmt.Println(ui.FormatBeer(randomBeer, 1))
 
 	// ask user if they want to favorite the beer
-	color.Cyan("Would you like to add this beer to your favorites? (y/n): ")
+	fmt.Print(ui.Prompt("Would you like to add this beer to your favorites? (y/n): "))
 	var choice string
 	fmt.Scanln(&choice)
 	choice = strings.ToLower(strings.TrimSpace(choice))
@@ -602,7 +490,7 @@ func randomCommand(s *models.State, cmd models.Command) error {
 		// call the favorite command
 		return favoriteCommand(s, favCmd)
 	} else {
-		color.Cyan("Beer not added to favorites.")
+		fmt.Println(ui.Info("Beer not added to favorites."))
 	}
 
 	return nil
@@ -612,22 +500,22 @@ func randomCommand(s *models.State, cmd models.Command) error {
 func historyCommand(s *models.State, cmd models.Command) error {
 	// check if there is any search history
 	if len(s.SearchHistory) == 0 {
-		color.Yellow("📭 Your search history is empty")
-		color.Cyan("\n💡 Search history will appear here after you:")
-		color.Cyan("   • Perform your first search")
-		color.Cyan("   • Example: search IPA")
-		color.Yellow("\n💭 Tip: History is saved per user and persists between sessions")
+		fmt.Println(ui.Info("Your search history is empty"))
+		fmt.Println(ui.Tip("\nSearch history will appear here after you:"))
+		fmt.Println(ui.Info("   • Perform your first search"))
+		fmt.Println(ui.Info("   • Example: search IPA"))
+		fmt.Println(ui.Tip("\nTip: History is saved per user and persists between sessions"))
 		return nil
 	}
 
 	// display search history
-	color.Blue("\nYour Search History:")
-	for i, entry := range s.SearchHistory {
-		color.Yellow("\n--- Search #%d ---\n", i+1)
-		fmt.Printf("Term: %s\n", entry.Term)
-		fmt.Printf("Timestamp: %s\n", entry.Timestamp.Format(time.RFC1123))
-		fmt.Printf("Results Found: %d\n", len(entry.Results))
+	fmt.Println(ui.Header("\nYour Search History:"))
+
+	// iterate over search history entries and print their details
+	for i := range s.SearchHistory {
+		fmt.Println(ui.FormatSearchHistory(s.SearchHistory, i+1))
 	}
+
 	return nil
 }
 
@@ -638,33 +526,33 @@ func clearHistoryCommand(s *models.State, cmd models.Command) error {
 
 	// check if there is any history to clear
 	if len(s.SearchHistory) == 0 {
-		color.Yellow("⚠️ No search history to clear.")
-		color.Cyan("\n💡 Your search history is already empty.")
-		color.Cyan("   Perform searches to build your history.")
+		fmt.Println(ui.Warning("No search history to clear."))
+		fmt.Println(ui.Tip("\nYour search history is already empty."))
+		fmt.Println(ui.Info("   Perform searches to build your history."))
 		return nil
 	}
 
 	// ask are you sure
-	color.Cyan("Are you sure you want to clear your search history? (y/n): ")
+	fmt.Print(ui.Prompt("Are you sure you want to clear your search history? (y/n): "))
 	var choice string
 	fmt.Scanln(&choice)
 	choice = strings.ToLower(strings.TrimSpace(choice))
 
 	if choice != "y" && choice != "yes" {
-		color.Cyan("Search history not cleared.")
+		fmt.Println(ui.Info("Search history not cleared."))
 		return nil
 	}
 	// save the empty history to the file
 	err := storage.SaveSearchHistory(s.Config.User, history)
 	if err != nil {
-		color.Red("error clearing search history", err)
+		fmt.Println(ui.Error("error clearing search history", err))
 		return nil
 	}
 
 	// clear in-memory history
 	s.SearchHistory = []models.SearchHistoryEntry{}
 
-	color.Green("All search history has been cleared.")
+	fmt.Println(ui.Success("All search history has been cleared."))
 	return nil
 }
 
@@ -674,19 +562,19 @@ func clearHistoryCommand(s *models.State, cmd models.Command) error {
 func exportFavoritesCommand(s *models.State, cmd models.Command) error {
 	// validate format argument
 	if len(cmd.Args) == 0 {
-		color.Red("❌ Error: Export format is required (json/csv/txt)")
-		color.Yellow("\n💡 Usage: export favs <format>")
-		color.Yellow("\n📖 Examples:")
-		color.Cyan("   export favs json")
-		color.Cyan("   export favs csv")
-		color.Cyan("   export favs txt")
+		fmt.Println(ui.Error("Error: Export format is required (json/csv/txt)"))
+		fmt.Println(ui.Tip("\nUsage: export favs <format>"))
+		fmt.Println(ui.Example("\nExamples:"))
+		fmt.Println(ui.Info("   export favs json"))
+		fmt.Println(ui.Info("   export favs csv"))
+		fmt.Println(ui.Info("   export favs txt"))
 		return nil
 	}
 
 	// load favorites from storage
 	favorites, err := storage.LoadFavorites(s.Config.User)
 	if err != nil {
-		color.Red("error loading favorites", err)
+		fmt.Println(ui.Error("error loading favorites", err))
 		return nil
 	}
 
@@ -702,7 +590,7 @@ func exportFavoritesCommand(s *models.State, cmd models.Command) error {
 	case "txt":
 		exporter = export.NewTXTExporter()
 	default:
-		color.Red("❌ Error: Unsupported export format %q. Use 'json', 'csv', or 'txt'.", format)
+		fmt.Println(ui.Error("Error: Unsupported export format %q. Use 'json', 'csv', or 'txt'.", format))
 		return nil
 	}
 
@@ -712,60 +600,40 @@ func exportFavoritesCommand(s *models.State, cmd models.Command) error {
 	// call the exporter.Export() method
 	err = exporter.Export(favorites.Beers, filename)
 	if err != nil {
-		color.Red("❌ Error: Failed to export favorites: %v", err)
+		fmt.Println(ui.Error("Error: Failed to export favorites: %v", err))
 		return nil
 	}
 
 	// display success msg with file location
-	color.Green("✅ Favorites exported successfully to %s", filename)
+	fmt.Println(ui.Success("Favorites exported successfully to %s", filename))
 	return nil
 }
 
 func main() {
 
-	color.Cyan(` __      __   _                    _____      _   _          ___                ___       __         _             
- \ \    / /__| |__ ___ _ __  ___  |_   _|__  | |_| |_  ___  | _ ) ___ ___ _ _  |_ _|_ _  / _|___    /_\  _ __ _ __ 
-  \ \/\/ / -_) / _/ _ \ '  \/ -_)   | |/ _ \ |  _| ' \/ -_) | _ \/ -_) -_) '_|  | || ' \|  _/ _ \  / _ \| '_ \ '_ \
-   \_/\_/\___|_\__\___/_|_|_\___|   |_|\___/  \__|_||_\___| |___/\___\___|_|   |___|_||_|_| \___/ /_/ \_\ .__/ .__/
-                                                                                                        |_|  |_|   `)
-
-	color.Cyan("--------------------------------------------------------------------------------------------------------------------")
-
 	// prompt the user to login or continue as guest
 
 	username := ""
-	color.Magenta("Enter your username (or press Enter to continue as guest): ")
+	fmt.Println(ui.Prompt("Enter your username (or press Enter to continue as guest): "))
 	fmt.Scanln(&username)
 
-	// If username is empty, set to "Guest"
-	if username == "" {
-		username = "guest"
-	}
+	// welcome message
+	ui.ShowWelcomeBanner(username)
 
-	// greet the user
-	color.Magenta("Hello there, %s!\n", toTitleCase(username))
-	color.Cyan("********************************************************************************************************8*")
+	// print app header
+	fmt.Println(ui.StarDivider())
 
 	// load .env file
 	err := godotenv.Load()
 	if err != nil {
-		color.Red("Error loading .env file")
+		fmt.Println(ui.Error("Error loading .env file"))
 		return
 	}
 
 	// get API key from .env file
 	apiKey := os.Getenv("API_KEY")
 	if apiKey == "" {
-		color.Red("❌ Error: API key not found in .env file")
-		color.Yellow("🔍 Checked file: .env")
-		color.Cyan("\n💡 How to fix:")
-		color.Cyan("   1. Open the .env file")
-		color.Cyan("   2. Make sure it contains:")
-		color.Cyan("      API_KEY=your_actual_key_here")
-		color.Cyan("   3. Save the file and restart the app")
-		color.Yellow("\n🔑 Get an API key:")
-		color.Cyan("   https://rapidapi.com/winevybe/api/beer9")
-		color.Yellow("\n⚠️  The app will now exit")
+		ui.ShowAPIKeyError()
 		return
 	}
 
@@ -782,7 +650,7 @@ func main() {
 		if os.IsNotExist(err) {
 			history = []models.SearchHistoryEntry{}
 		} else {
-			color.Yellow("Warning: Could not load search history: %v\n", err)
+			fmt.Println(ui.Warning("Warning: Could not load search history: %v\n", err))
 			history = []models.SearchHistoryEntry{}
 		}
 	}
@@ -821,13 +689,13 @@ func main() {
 
 		// display current user
 		if s.Config.User != "" {
-			color.Magenta("\nCurrent User: %s\n", toTitleCase(s.Config.User))
+			fmt.Println(ui.Header("Current User: %s\n", ui.ToTitleCase(s.Config.User)))
 		} else {
-			color.Magenta("\nCurrent User: guest")
+			fmt.Println(ui.Header("Current User: guest"))
 		}
 
 		// prompt user for command
-		color.Magenta("\n> Enter a command (type 'help' for available commands): ")
+		fmt.Println(ui.Prompt("Enter a command (type 'help' for available commands): "))
 		reader := bufio.NewReader(os.Stdin)
 		// read user input
 		input, _ := reader.ReadString('\n')
@@ -860,8 +728,8 @@ func main() {
 		// run the command
 		err := ch.RunCommand(s, cmd)
 		if err != nil {
-			color.Red("Error executing command:", err)
-			color.Blue("Type 'help' to see a full list of available commands.")
+			fmt.Println(ui.Error("Error executing command:", err))
+			fmt.Println(ui.Tip("Type 'help' to see a full list of available commands."))
 		}
 
 		// end of main loop
