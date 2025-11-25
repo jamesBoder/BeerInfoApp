@@ -122,25 +122,8 @@ func FormatSearchHistory(entry []models.SearchHistoryEntry, number int) string {
 	return sb.String()
 }
 
-// create a FormatHelpMenu to display help menu use commands and descriptions provided below
-// color.Magenta("\nAvailable commands:")
-// color.Cyan("---------------------------------------------------")
-// coloredText := color.New(color.FgCyan).SprintFunc()
-// fmt.Println(coloredText("  Command                   Description"))
-// fmt.Println(coloredText("  -------------             -----------"))
-// fmt.Println("  login <username>   - Log in with the specified username")
-// fmt.Println("  logout             - Log out of the current session")
-// fmt.Println("  search <beername>  - Search for a specific beer")
-// fmt.Println("  favorite <beername> - Add a beer to your favorites")
-// fmt.Println("  favorites          - Display your favorite beers")
-// fmt.Println("  remove <beername>  - Remove a beer from your favorites")
-// fmt.Println("  clear favs         - Clear all favorite beers")
-// fmt.Println("  history            - Display your search history")
-// fmt.Println("  clear history      - Clear your search history")
-// fmt.Println("  export favs <format> - Export your favorites (json/csv/txt)")
-// fmt.Println("  help               - Show this help message")
-// fmt.Println("  exit, quit         - Exit the application")
-// fmt.Println("  random             - Display a random beer from last search results")
+// create a FormatHelpMenu to display help menu
+
 func FormatHelpMenu() string {
 	var sb strings.Builder
 	sb.WriteString(Header("\nAvailable commands:") + "\n")
