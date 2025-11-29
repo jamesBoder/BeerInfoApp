@@ -206,4 +206,6 @@ func (c *RandomCommand) Execute(args []string) error {
 	// add Formatted beer display
 	fmt.Println(ui.FormatBeer(randomBeer, 1))
 
+	return nil
+
 }

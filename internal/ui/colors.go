@@ -67,7 +67,7 @@ func Divider() string {
 
 // create a Separator() color msg for the cyan dashes between fields
 func Separator() string {
-	return color.New(color.FgCyan).Sprintf("────────────────")
+	return color.New(color.FgCyan).Sprintf("──────────────────")
 }
 
 // create a ****** line color msg cyan

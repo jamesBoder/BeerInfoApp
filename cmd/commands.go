@@ -41,8 +41,8 @@ func RegisterAllCommands(router *cli.Router, ctx *CommandContext) {
 	router.RegisterAlias("quit", "exit")
 
 	// Register mulit=word commands
-	//router.RegisterMultiWordCommand("clear favs")
-	//router.RegisterMultiWordCommand("clear history")
-	//router.RegisterMultiWordCommand("export favs")
+	router.RegisterMultiWordCommand("clear favs")
+	router.RegisterMultiWordCommand("clear history")
+	router.RegisterMultiWordCommand("export favs")
 
 }
