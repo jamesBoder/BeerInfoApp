@@ -2,6 +2,9 @@
 
 A colorful CLI application for discovering and managing your favorite beers using the Beer9 API.
 
+### Motivation
+I am a beer connoisseur and I wanted to create an application to lookup & find more information on my favorite beers around the world. 
+
 ## ✨ Features
 
 - 🔍 **Search Beers** - Search for beers by name with detailed information
@@ -124,14 +127,6 @@ BeerInfoApp/
 ├── search_history_*.json   # Search history (auto-generated)
 └── README.md               # This file
 ```
-
-## 🎨 Color Scheme
-
-- 🟢 **Green** - Success messages
-- 🔴 **Red** - Error messages
-- 🟡 **Yellow** - Warnings
-- 🔵 **Cyan** - Headers and beer names
-- ⚪ **White** - Regular text and prompts
 
 ## 💾 Data Storage
 
