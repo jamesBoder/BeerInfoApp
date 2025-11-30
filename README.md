@@ -8,8 +8,10 @@ A colorful CLI application for discovering and managing your favorite beers usin
 - 🎲 **Random Beer** - Get random beer suggestions from your search results
 - ⭐ **Favorites System** - Save and manage your favorite beers with complete details
 - 👤 **Multi-User Support** - Each user has their own favorites and data
+- 📊 **Search History** - Track all your searches with timestamps
+- 📤 **Export Favorites** - Export your favorites to JSON, CSV, or TXT files
 - 🎨 **Colorful Interface** - Beautiful color-coded output for better readability
-- 💾 **Data Persistence** - Your favorites are saved and restored between sessions
+- 💾 **Data Persistence** - Your favorites and history are saved between sessions
 
 ## 🚀 Getting Started
 
@@ -52,7 +54,10 @@ go run main.go
 | `favorite <beer name>` | Add a beer to your favorites | `favorite Berkshire IPA` |
 | `favorites` | Display all your favorite beers | `favorites` |
 | `remove <beer name>` | Remove a beer from favorites | `remove Berkshire IPA` |
-| `clear` | Clear all favorites | `clear` |
+| `clear favs` | Clear all favorites | `clear favs` |
+| `history` | View your search history | `history` |
+| `clear history` | Clear your search history | `clear history` |
+| `export favs <format>` | Export favorites (json/csv/txt) | `export favs json` |
 | `login <username>` | Login as a user | `login james` |
 | `logout` | Logout current user | `logout` |
 | `help` | Show help message | `help` |
@@ -90,6 +95,9 @@ ABV: 6.5%
 🍺 Name: Berkshire IPA
 ...
 
+> export favs json
+✅ Favorites exported successfully to favorites_james_20240115_143022.json
+
 > logout
 ✅ User james logged out successfully
 ```
@@ -105,13 +113,16 @@ ABV: 6.5%
 
 ```
 BeerInfoApp/
-├── main.go                 # Main application code
+├── main.go                 # Entry point
+├── cmd/                    # Command handlers
+├── internal/               # Internal packages (models, storage, API, UI)
+├── pkg/                    # Reusable CLI framework
 ├── .env                    # API key configuration
-├── .gitignore             # Git ignore file
-├── go.mod                 # Go module file
-├── go.sum                 # Go dependencies
-├── favorites_*.json       # User-specific favorites (auto-generated)
-├── README.md              # This file
+├── go.mod                  # Go module file
+├── go.sum                  # Go dependencies
+├── favorites_*.json        # User favorites (auto-generated)
+├── search_history_*.json   # Search history (auto-generated)
+└── README.md               # This file
 ```
 
 ## 🎨 Color Scheme
@@ -124,10 +135,17 @@ BeerInfoApp/
 
 ## 💾 Data Storage
 
-Each user's favorites are stored in a separate JSON file:
+Each user's data is stored in separate JSON files:
+
+**Favorites:**
 - `favorites_james.json` - James's favorites
 - `favorites_sarah.json` - Sarah's favorites
 - `favorites_guest.json` - Guest user favorites
+
+**Search History:**
+- `search_history_james.json` - James's search history
+- `search_history_sarah.json` - Sarah's search history
+- `search_history_guest.json` - Guest search history
 
 Your data persists between sessions and survives logout/login.
 
