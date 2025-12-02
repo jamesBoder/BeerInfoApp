@@ -192,7 +192,7 @@ func (c *RandomCommand) Execute(args []string) error {
 	}
 
 	// seed the random number generator
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
 
 	// generate a random index
 	randomIndex := rand.Intn(len(c.ctx.State.LastSearchResults))

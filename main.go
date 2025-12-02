@@ -32,17 +32,7 @@ func main() {
 		return
 	}
 
-	// call application.Run()()
+	// call application.Run()
 	application.Run()
-
-	// CLI interaction section
-
-	// Main Loop
-	for {
-
-		// end of main loop
-		fmt.Println()
-
-	}
 
 }

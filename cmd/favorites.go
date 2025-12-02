@@ -72,8 +72,14 @@ func (c *FavoritesCommand) Execute(args []string) error {
 	// load existing favorites
 	favorites, err := storage.LoadFavorites(c.ctx.State.Config.User)
 	if err != nil {
-		fmt.Println(ui.Warning("favorites is empty. Type 'help' to add a favorite beer", err))
-		return nil
+		// if file not found, initialize empty favorites
+		if os.IsNotExist(err) {
+			favorites = models.Favorites{Beers: []models.Beer{}}
+		} else {
+			// other errors
+			fmt.Println(ui.Error("Error loading favorites:", err))
+			return nil
+		}
 	}
 
 	// check if there are any favorites
