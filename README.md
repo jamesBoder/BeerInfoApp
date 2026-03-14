@@ -2,7 +2,7 @@
 
 **A colorful CLI application for discovering, saving, and exporting your favorite beers — powered by the Beer9 API.**
 
-[![CI](https://github.com/jamesBoder/BeerInfoApp/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesBoder/BeerInfoApp/actions/workflows/ci.yml)
+[![CI](https://github.com/jamesBoder/BeerInfoApp/actions/workflows/ci.yml/badge.svg?branch=ver2)](https://github.com/jamesBoder/BeerInfoApp/actions/workflows/ci.yml)
 [![Release](https://github.com/jamesBoder/BeerInfoApp/actions/workflows/release.yml/badge.svg)](https://github.com/jamesBoder/BeerInfoApp/releases)
 
 ---
