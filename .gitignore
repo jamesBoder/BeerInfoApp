@@ -40,8 +40,10 @@ go.work.sum
 # .md file
 *.md
 
-# except README.md
+# except README.md and docs/
 !README.md
+!docs/
+!docs/*.md
 
 # .json file
 *.json
@@ -57,3 +59,4 @@ go.work.sum
 
 # exact file
 BeerInfoApp.bin
+
