@@ -60,3 +60,5 @@ go.work.sum
 # exact file
 BeerInfoApp.bin
 
+# docs folder
+docs/
