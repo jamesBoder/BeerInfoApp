@@ -2,6 +2,9 @@
 
 **A colorful CLI application for discovering, saving, and exporting your favorite beers — powered by the Beer9 API.**
 
+[![CI](https://github.com/jamesBoder/BeerInfoApp/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesBoder/BeerInfoApp/actions/workflows/ci.yml)
+[![Release](https://github.com/jamesBoder/BeerInfoApp/actions/workflows/release.yml/badge.svg)](https://github.com/jamesBoder/BeerInfoApp/releases)
+
 ---
 
 ## Motivation
@@ -21,26 +24,39 @@ I am a beer connoisseur and I wanted to create a fun application to look up and 
 
 ---
 
-## Quick Start
+## Getting Started
 
-**Prerequisites:** Go 1.16+ · RapidAPI account
+**Option 1 — Download a pre-built binary** (no Go required)
+
+Grab the latest release for your OS from the [Releases page](https://github.com/jamesBoder/BeerInfoApp/releases), then:
+
+```bash
+./beerinfo
+```
+
+**Option 2 — Install with Go**
+
+```bash
+go install github.com/jamesBoder/BeerInfoApp@latest
+```
+
+**Option 3 — Run from source**
 
 ```bash
 git clone https://github.com/jamesBoder/BeerInfoApp.git
 cd BeerInfoApp
 go mod download
+go run main.go
 ```
 
-Create a `.env` file:
+**API Key (required for all options)**
+
+Create a `.env` file in the same directory as the binary:
 ```env
 API_KEY=your_rapidapi_key_here
 ```
 
 > Get a free key at [RapidAPI → Beer9 API](https://rapidapi.com/winevybe/api/beer9)
-
-```bash
-go run main.go
-```
 
 ---
 
